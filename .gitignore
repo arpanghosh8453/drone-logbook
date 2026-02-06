@@ -28,13 +28,12 @@ Thumbs.db
 .env.local
 .env.*.local
 *.env
-.context
+.todo
 
 # DJI API Key - NEVER COMMIT
 .dji-api-key
 secrets/
 *.key
-.todo
 
 # Logs
 logs/

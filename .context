@@ -1,0 +1,272 @@
+{
+  "project": {
+    "name": "DJI Log Viewer",
+    "goal": "Local-first DJI flight log viewer with charts, maps, and analytics.",
+    "stack": {
+      "desktop": "Tauri v2",
+      "frontend": "React 18 + TypeScript + Vite + Tailwind",
+      "state": "Zustand",
+      "charts": "ECharts (echarts-for-react)",
+      "maps": "MapLibre GL (react-map-gl)",
+      "database": "DuckDB (duckdb-rs, bundled)",
+      "parser": "dji-log-parser v0.5.7"
+    },
+    "os": "Linux",
+    "runtime": {
+      "node": "18.x",
+      "rust": "stable",
+      "tauri_cli": "2.x"
+    }
+  },
+  "dependencies": {
+    "frontend": {
+      "react": "^18.3.1",
+      "react_dom": "^18.3.1",
+      "vite": "^6.0.0",
+      "tailwindcss": "^3.4.14",
+      "zustand": "^5.0.0",
+      "echarts": "^5.5.0",
+      "echarts_for_react": "^3.0.2",
+      "react_map_gl": "^7.1.7",
+      "maplibre_gl": "^4.7.0",
+      "react_dropzone": "^14.3.5",
+      "react_day_picker": "^9.13.0"
+    },
+    "tauri_plugins": [
+      "@tauri-apps/api",
+      "@tauri-apps/plugin-dialog",
+      "@tauri-apps/plugin-fs",
+      "@tauri-apps/plugin-shell"
+    ],
+    "backend": {
+      "duckdb_rs": "bundled",
+      "dji_log_parser": "0.5.7"
+    }
+  },
+  "scope": {
+    "features": [
+      "Import and parse DJI flight logs (bulk import with cooldown).",
+      "Local DuckDB storage with telemetry schema, WAL recovery, and migration support.",
+      "Overview analytics page (totals, averages, battery usage).",
+      "Flight list with rename, delete, filters (date range, drone, battery).",
+      "Settings: API key, units (metric/imperial), theme (light/dark/system), delete-all logs.",
+      "Charts: height/VPS/speed (metric in km/h), battery, attitude, RC signal, GPS satellites.",
+      "Charts: synchronized zoom, reset zoom, auto-scaled Y axes, aligned X-axis ticks, custom tooltip header with pills.",
+      "Map: 3D terrain view via MapLibre, global theme styling.",
+      "UI polish: theme variables, tag styling for device/serials, modal scrollbar lock.",
+      "Data safety: DB backup, corruption handling, telemetry rebuild when column order mismatches."
+    ],
+    "out_of_scope": [
+      "Cloud sync",
+      "Server-side processing",
+      "External analytics pipelines"
+    ]
+  },
+  "structure": {
+    "frontend": {
+      "root": "src",
+      "key_components": [
+        "src/components/dashboard/Dashboard.tsx",
+        "src/components/dashboard/FlightList.tsx",
+        "src/components/dashboard/FlightStats.tsx",
+        "src/components/dashboard/SettingsModal.tsx",
+        "src/components/dashboard/Overview.tsx",
+        "src/components/charts/TelemetryCharts.tsx",
+        "src/components/map/FlightMap.tsx"
+      ],
+      "styles": [
+        "src/index.css",
+        "tailwind.config.js"
+      ],
+      "state_store": "src/stores/flightStore.ts",
+      "types": "src/types/index.ts"
+    },
+    "backend": {
+      "root": "src-tauri/src",
+      "key_files": [
+        "src-tauri/src/main.rs",
+        "src-tauri/src/database.rs",
+        "src-tauri/src/parser.rs",
+        "src-tauri/src/models.rs"
+      ]
+    },
+    "config": {
+      "env": ".env (DJI API key via env var)",
+      "local_config": "config.json (API key stored locally)",
+      "context_file": ".context (machine-readable project context, gitignored)"
+    }
+  },
+  "data_flow": {
+    "import": [
+      "User selects file(s) in UI",
+      "Tauri command parses using dji-log-parser",
+      "Metadata inserted into flights table",
+      "Telemetry bulk inserted with DuckDB Appender (column order enforced)",
+      "UI refreshes flight list and telemetry views"
+    ],
+    "telemetry_query": [
+      "UI requests telemetry for flight",
+      "DB returns raw data or downsampled to ~5000 points",
+      "Frontend converts units and renders charts/maps"
+    ]
+  },
+  "recent_changes": {
+    "filters": {
+      "flight_list": "Added date range popup, drone and battery filters with compact styling.",
+      "date_picker": "Modern range picker (react-day-picker), future dates disabled, themed styling."
+    },
+    "ui": {
+      "selects": "Custom select styling to match dark/light themes, consistent background and text.",
+      "collapsed_sidebar": "Collapsed width increased by ~20%.",
+      "labels": "Device/SN/Battery tags stylized as pills.",
+      "charts": "Light theme gridlines, auto axis ranges with rounding, right padding to avoid label clipping, RC ticks fixed (0/50/100).",
+      "battery_chart": "Low battery region shown as semi-transparent red band; voltage plotted on hidden axis, temp labeled on right.",
+      "gps_chart": "Height increased to 200px."
+    }
+  },
+  "behavior": {
+    "theme": "Global theme (system/light/dark) applied to body, maps, and charts.",
+    "units": "Metric/Imperial conversions for speed, height, distance.",
+    "x_axis_ticks": "Shared time axis labels aligned across charts; labels rotated and overlap hidden."
+  },
+  "data_model": {
+    "flight": {
+      "fields": [
+        "id",
+        "fileName",
+        "displayName",
+        "startTime",
+        "durationSecs",
+        "totalDistance",
+        "droneModel",
+        "droneSerial",
+        "aircraftName",
+        "batterySerial"
+      ]
+    },
+    "telemetry": {
+      "fields": [
+        "time",
+        "height",
+        "vpsHeight",
+        "speed",
+        "battery",
+        "batteryVoltage",
+        "batteryTemp",
+        "pitch",
+        "roll",
+        "yaw",
+        "rcSignal",
+        "satellites",
+        "altitude"
+      ]
+    }
+  },
+  "database": {
+    "path": "~/.local/share/com.dji-logviewer.app/flights.db",
+    "tables": {
+      "flights": [
+        "id",
+        "file_name",
+        "display_name",
+        "file_hash",
+        "drone_model",
+        "drone_serial",
+        "aircraft_name",
+        "battery_serial",
+        "start_time",
+        "end_time",
+        "duration_secs",
+        "total_distance",
+        "max_altitude",
+        "max_speed",
+        "home_lat",
+        "home_lon",
+        "point_count",
+        "imported_at",
+        "notes"
+      ],
+      "telemetry": [
+        "flight_id",
+        "timestamp_ms",
+        "latitude",
+        "longitude",
+        "altitude",
+        "height",
+        "vps_height",
+        "altitude_abs",
+        "speed",
+        "velocity_x",
+        "velocity_y",
+        "velocity_z",
+        "pitch",
+        "roll",
+        "yaw",
+        "gimbal_pitch",
+        "gimbal_roll",
+        "gimbal_yaw",
+        "battery_percent",
+        "battery_voltage",
+        "battery_current",
+        "battery_temp",
+        "flight_mode",
+        "gps_signal",
+        "satellites",
+        "rc_signal"
+      ],
+      "keychains": [
+        "serial_number",
+        "encryption_key",
+        "fetched_at"
+      ]
+    },
+    "notes": [
+      "Telemetry table column order is enforced; if mismatched it rebuilds automatically.",
+      "Bulk inserts use DuckDB Appender matching the exact column order above.",
+      "Downsampling occurs when telemetry points exceed ~5000 (1s buckets)."
+    ]
+  },
+  "parser": {
+    "version": "dji-log-parser v0.5.7",
+    "inputs": "DJI .dat/.txt logs",
+    "outputs": [
+      "Flight metadata (aircraft name, drone model/serial, battery serial, start/end, duration)",
+      "Telemetry arrays (time, position, orientation, battery, RC, GPS)"
+    ],
+    "notes": [
+      "Height uses OSD height when available; VPS height stored separately.",
+      "Altitude fallback uses altitude if height is missing.",
+      "Display name defaults to filename; can be edited in UI."
+    ]
+  },
+  "commands": {
+    "frontend": [
+      "npm run dev",
+      "npm run build",
+      "npm run preview"
+    ],
+    "tauri": [
+      "npm run tauri",
+      "npm run tauri:nowatch"
+    ]
+  },
+  "ui": {
+    "themes": "CSS variables in src/index.css; body classes theme-light/theme-dark.",
+    "filters": "Flight list uses date range popover (react-day-picker), drone and battery selects.",
+    "charts": "ECharts with synced zoom; reset zoom button; map + charts resizable panels; tooltip header uses pill capsules for duration/time; attitude panel taller; RC ticks fixed to 0/50/100.",
+    "map": "MapLibre terrain with global theme styling."
+  },
+  "known_issues": [
+    "If import fails with column order mismatch, telemetry table rebuild should correct it.",
+    "Node engine warnings may appear for some transient packages; app still runs."
+  ],
+  "notes": {
+    "api_key": "Stored locally in config.json; never sent except to DJI API.",
+    "db_location": "App data dir under ~/.local/share/com.dji-logviewer.app",
+    "checkpoint": "git tag checkpoint-2026-02-06",
+    "git": {
+      "branch": "master",
+      "tags": ["checkpoint-2026-02-06"]
+    }
+  }
+}
