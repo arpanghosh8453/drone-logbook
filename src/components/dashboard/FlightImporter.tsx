@@ -13,6 +13,7 @@ export function FlightImporter() {
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -50,7 +51,10 @@ export function FlightImporter() {
     let skipped = 0;
     let processed = 0;
 
-    for (const filePath of files) {
+    for (let index = 0; index < files.length; index += 1) {
+      const filePath = files[index];
+      const isLast = index === files.length - 1;
+      setCurrentFileName(getShortFileName(filePath));
       const result = await importLog(filePath);
       if (!result.success) {
         if (result.message.toLowerCase().includes('already been imported')) {
@@ -60,12 +64,14 @@ export function FlightImporter() {
         }
       } else {
         processed += 1;
+        if (!isLast) {
+          await runCooldown(5);
+        }
       }
-
-      await runCooldown(5);
     }
 
     setIsBatchProcessing(false);
+    setCurrentFileName(null);
     if (skipped > 0) {
       setBatchMessage(
         `Import finished. ${processed} file${processed === 1 ? '' : 's'} processed, ` +
@@ -117,6 +123,8 @@ export function FlightImporter() {
           <span className="text-sm text-gray-400">
             {cooldownRemaining > 0
               ? `Cooling down... ${cooldownRemaining}s`
+              : currentFileName
+              ? `Importing ${currentFileName}...`
               : 'Importing...'}
           </span>
         </div>
@@ -158,4 +166,11 @@ export function FlightImporter() {
       )}
     </div>
   );
+}
+
+function getShortFileName(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  const name = normalized.split('/').pop() || filePath;
+  if (name.length <= 50) return name;
+  return `${name.slice(0, 50)}…`;
 }

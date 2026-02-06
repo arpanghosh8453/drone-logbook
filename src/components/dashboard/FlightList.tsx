@@ -294,36 +294,38 @@ export function FlightList() {
             <div className="flex-1 min-w-0">
               {/* Display Name */}
               {editingId === flight.id ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2">
                   <input
                     value={draftName}
                     onChange={(e) => setDraftName(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="input h-7 text-sm px-2"
+                    className="input h-8 text-sm px-2 w-full"
                     placeholder="Flight name"
                   />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const name = draftName.trim();
-                      if (name.length > 0) {
-                        updateFlightName(flight.id, name);
-                      }
-                      setEditingId(null);
-                    }}
-                    className="text-xs text-dji-primary hover:text-dji-accent"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingId(null);
-                    }}
-                    className="text-xs text-gray-400 hover:text-gray-200"
-                  >
-                    Cancel
-                  </button>
+                  <div className="flex items-center gap-2 pb-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const name = draftName.trim();
+                        if (name.length > 0) {
+                          updateFlightName(flight.id, name);
+                        }
+                        setEditingId(null);
+                      }}
+                      className="text-xs text-dji-primary hover:text-dji-accent"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(null);
+                      }}
+                      className="text-xs text-gray-400 hover:text-gray-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -370,21 +372,23 @@ export function FlightList() {
             </div>
 
             {/* Delete Button */}
-            <button
-              onClick={async (e) => {
-                e.stopPropagation();
-                const shouldDelete = window.confirm(
-                  `Delete "${flight.displayName || flight.fileName}"? This cannot be undone.`
-                );
-                if (shouldDelete) {
-                  deleteFlight(flight.id);
-                }
-              }}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
-              title="Delete flight"
-            >
-              <TrashIcon />
-            </button>
+            {editingId !== flight.id && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const shouldDelete = window.confirm(
+                    `Delete "${flight.displayName || flight.fileName}"? This cannot be undone.`
+                  );
+                  if (shouldDelete) {
+                    deleteFlight(flight.id);
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
+                title="Delete flight"
+              >
+                <TrashIcon />
+              </button>
+            )}
           </div>
         </div>
       ))}

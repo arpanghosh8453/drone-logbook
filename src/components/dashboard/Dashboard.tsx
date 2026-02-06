@@ -41,7 +41,11 @@ export function Dashboard() {
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const percentage = ((event.clientX - rect.left) / rect.width) * 100;
-        setMainSplit(Math.min(Math.max(percentage, 25), 75));
+        const minLeftPercent = (720 / rect.width) * 100;
+        const maxLeftPercent = 100 - (320 / rect.width) * 100;
+        setMainSplit(
+          Math.min(Math.max(percentage, minLeftPercent), maxLeftPercent)
+        );
       }
     };
 
@@ -224,7 +228,10 @@ export function Dashboard() {
             {/* Charts and Map Grid */}
             <div id="main-panels" className="flex-1 flex gap-4 p-4 overflow-hidden">
               {/* Telemetry Charts */}
-              <div className="card overflow-hidden flex flex-col" style={{ flexBasis: `${mainSplit}%` }}>
+              <div
+                className="card overflow-hidden flex flex-col"
+                style={{ flexBasis: `${mainSplit}%`, minWidth: 720 }}
+              >
                 <div className="p-3 border-b border-gray-700">
                   <h2 className="font-semibold text-white">
                     Telemetry Data
