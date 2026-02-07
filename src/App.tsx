@@ -100,8 +100,8 @@ function App() {
               : 'bg-gradient-to-r from-violet-900 via-purple-900 to-orange-900'
           }`}
         >
-          <div className="relative mx-auto flex w-full items-center justify-center gap-4 px-4 py-[22px]">
-            <div className="flex flex-nowrap items-center justify-center gap-2 text-[1.05rem] md:text-[1.1rem] text-center px-6">
+          <div className="relative mx-auto flex w-full items-center justify-center gap-4 px-4 py-[17px]">
+            <div className="flex flex-nowrap items-center justify-center gap-2 text-[0.95rem] md:text-[1rem] text-center px-6">
               <span>
                 This is a free, open-source project on
               </span>
@@ -116,7 +116,7 @@ function App() {
                 }
               >
                 GitHub
-              </a>
+              </a> by Arpan Ghosh
               <span className={resolvedTheme === 'light' ? 'text-gray-500' : 'text-gray-400'}>
                 •
               </span>

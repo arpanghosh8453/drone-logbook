@@ -15,7 +15,7 @@ import { formatDuration, formatDateTime, formatDistance } from '@/lib/utils';
 import { DayPicker, type DateRange } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
-export function FlightList() {
+export function FlightList({ showControls = true }: { showControls?: boolean } = {}) {
   const {
     flights,
     selectedFlightId,
@@ -143,6 +143,7 @@ export function FlightList() {
   }, [flights]);
 
   const filteredFlights = useMemo(() => {
+    if (!showControls) return flights;
     const start = dateRange?.from ?? null;
     const end = dateRange?.to ? new Date(dateRange.to) : null;
     if (end) end.setHours(23, 59, 59, 999);
@@ -169,8 +170,8 @@ export function FlightList() {
   }, [dateRange, flights, selectedBattery, selectedDrone]);
 
   const normalizedSearch = useMemo(
-    () => searchQuery.trim().toLowerCase(),
-    [searchQuery]
+    () => (showControls ? searchQuery.trim().toLowerCase() : ''),
+    [searchQuery, showControls]
   );
 
   const getFlightTitle = useCallback((flight: { displayName?: string | null; fileName?: string | null }) => {
@@ -188,6 +189,11 @@ export function FlightList() {
   const sortedFlights = useMemo(() => {
     const list = [...searchedFlights];
     list.sort((a, b) => {
+      if (!showControls) {
+        const aDate = a.startTime ? new Date(a.startTime).getTime() : 0;
+        const bDate = b.startTime ? new Date(b.startTime).getTime() : 0;
+        return bDate - aDate;
+      }
       if (sortOption === 'name') {
         const nameA = getFlightTitle(a).toLowerCase();
         const nameB = getFlightTitle(b).toLowerCase();
@@ -213,7 +219,7 @@ export function FlightList() {
       return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
     });
     return list;
-  }, [getFlightTitle, searchedFlights, sortDirection, sortOption]);
+  }, [getFlightTitle, searchedFlights, showControls, sortDirection, sortOption]);
 
   const sortOptions = useMemo(
     () => [
@@ -245,7 +251,8 @@ export function FlightList() {
       className="divide-y divide-gray-700/50"
       onClick={() => setConfirmDeleteId(null)}
     >
-      <div className="p-3 border-b border-gray-700 space-y-3">
+      {showControls && (
+        <div className="p-3 border-b border-gray-700 space-y-3">
         <div>
           <label className="block text-xs text-gray-400 mb-1">Date range</label>
           <button
@@ -411,6 +418,7 @@ export function FlightList() {
           </div>
         </div>
       </div>
+      )}
 
       {sortedFlights.map((flight) => (
         <div
@@ -552,7 +560,7 @@ export function FlightList() {
           </div>
         </div>
       ))}
-      {sortedFlights.length === 0 && normalizedSearch.length === 0 && (
+      {showControls && sortedFlights.length === 0 && normalizedSearch.length === 0 && (
         <div className="p-4 text-center text-gray-500 text-xs">
           No flights match the current filters or search.
         </div>

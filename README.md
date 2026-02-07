@@ -14,7 +14,8 @@ A high-performance desktop application for analyzing DJI drone flight logs. Buil
 - 🔐 **V13+ Log Support**: Automatic encryption key handling for newer DJI logs
 - 💾 **Local-First**: All data stored locally in a single DuckDB database
 - 🎛️ **Filters, Search & Sort**: Date range picker, drone/device filter, battery serial filter, search, and sorting
-- 🧭 **Overview Dashboard**: Aggregate totals, averages, and battery usage insights
+- 🧭 **Overview Dashboard**: Aggregate totals, averages, heatmap activity, donut breakdowns, and top-flight highlights
+- 🔋 **Battery Health Insights**: Per-battery health bars and per‑minute charge usage history with scatter + smooth line
 - 🎨 **Theme & Units**: Light/Dark/System theme and Metric/Imperial units
 - ✏️ **Editable Flight Names**: Rename flights directly in the sidebar
 - 🗑️ **Safe Deletion**: Confirmations for single-flight and delete-all actions
@@ -120,6 +121,7 @@ The built application will be in `src-tauri/target/release/bundle/`.
 2. **Select a Flight**: Click on a flight in the sidebar
 3. **Analyze Data**: View telemetry charts and the 3D flight path on the map
 4. **Filter/Search/Sort**: Use date range, drone/device, battery serial filters, search, and sorting
+5. **Overview Filters**: Apply the same date/drone/battery filters to overview analytics (no search)
 5. **Export**: Use the Export dropdown in the stats bar (CSV/JSON/GPX/KML)
 6. **Configure Settings**: Set API key, theme, units, and view app data/log directories
 

@@ -50,7 +50,11 @@
     "features": [
       "Import and parse DJI flight logs (bulk import with cooldown).",
       "Local DuckDB storage with telemetry schema, WAL recovery, and migration support.",
-      "Overview analytics page (totals, averages, battery usage).",
+      "Overview analytics page (totals, averages, max altitude, max distance from home).",
+      "Overview activity heatmap (365-day, 7x52 grid).",
+      "Overview donut charts for flights by drone model and batteries used.",
+      "Overview top 3 longest and furthest (distance-from-home) flights.",
+      "Battery health: per-serial health bars and per-minute usage history plot (scatter + smoothed line).",
       "Flight list with rename, delete, filters (date range, drone, battery), search, and sorting.",
       "Settings: API key, units (metric/imperial), theme (light/dark/system), delete-all logs.",
       "Settings: shows app data + log directory for troubleshooting.",
@@ -130,6 +134,8 @@
     "ui": {
       "selects": "Custom select styling to match dark/light themes, consistent background and text.",
       "collapsed_sidebar": "Collapsed width increased by ~20%.",
+      "overview_filters": "Sticky filter bar on overview; content scrolls independently.",
+      "overview_sidebar": "Flight list remains visible in overview; controls hidden.",
       "labels": "Device/SN/Battery tags stylized as pills.",
       "charts": "Light theme gridlines, auto axis ranges with rounding, right padding to avoid label clipping, RC ticks fixed (0/50/100).",
       "battery_chart": "Low battery region shown as semi-transparent red band; voltage plotted on hidden axis, temp labeled on right.",

@@ -99,7 +99,7 @@ export function Dashboard() {
       {/* Left Sidebar - Flight List */}
       {!isSidebarHidden && (
         <aside
-          className="bg-dji-secondary border-r border-gray-700 flex flex-col relative"
+          className="bg-dji-secondary border-r border-gray-700 flex flex-col relative overflow-visible"
           style={{ width: sidebarWidth }}
         >
         <div className="p-4 border-b border-gray-700 flex items-center justify-between">
@@ -163,11 +163,9 @@ export function Dashboard() {
         </div>
 
         {/* Flight List */}
-        {activeView === 'flights' && (
-          <div className="flex-1 overflow-y-auto">
-            <FlightList />
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto">
+          <FlightList showControls={activeView === 'flights'} />
+        </div>
 
         {/* Flight Count */}
         <div className="p-3 border-t border-gray-700 text-center">
@@ -177,7 +175,7 @@ export function Dashboard() {
         </div>
         <button
           onClick={() => setIsSidebarHidden(true)}
-          className="absolute -right-3 top-6 bg-dji-secondary border border-gray-700 rounded-full w-6 h-6 text-gray-300 hover:text-white"
+          className="absolute -right-3 top-6 bg-dji-secondary border border-gray-700 rounded-full w-6 h-6 text-gray-300 hover:text-white z-20"
           title="Hide sidebar"
         >
           ‹
@@ -215,7 +213,15 @@ export function Dashboard() {
         ) : activeView === 'overview' ? (
           <div className="flex-1 overflow-hidden">
             {overviewStats ? (
-              <Overview stats={overviewStats} unitSystem={unitSystem} />
+              <Overview
+                stats={overviewStats}
+                flights={flights}
+                unitSystem={unitSystem}
+                onSelectFlight={(flightId) => {
+                  setActiveView('flights');
+                  useFlightStore.getState().selectFlight(flightId);
+                }}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center h-full">
                 <p className="text-gray-500">No overview data yet.</p>

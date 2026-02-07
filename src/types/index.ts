@@ -58,6 +58,42 @@ export interface FlightDataResponse {
 export interface BatteryUsage {
   batterySerial: string;
   flightCount: number;
+  totalDurationSecs: number;
+}
+
+export interface DroneUsage {
+  droneModel: string;
+  droneSerial: string | null;
+  aircraftName: string | null;
+  flightCount: number;
+}
+
+export interface FlightDateCount {
+  date: string;
+  count: number;
+}
+
+export interface TopFlight {
+  id: number;
+  displayName: string;
+  durationSecs: number;
+  startTime: string | null;
+}
+
+export interface TopDistanceFlight {
+  id: number;
+  displayName: string;
+  maxDistanceFromHomeM: number;
+  startTime: string | null;
+}
+
+export interface BatteryHealthPoint {
+  flightId: number;
+  batterySerial: string;
+  startTime: string | null;
+  durationMins: number;
+  deltaPercent: number;
+  ratePerMin: number;
 }
 
 export interface OverviewStats {
@@ -65,7 +101,14 @@ export interface OverviewStats {
   totalDistanceM: number;
   totalDurationSecs: number;
   totalPoints: number;
+  maxAltitudeM: number;
+  maxDistanceFromHomeM: number;
   batteriesUsed: BatteryUsage[];
+  dronesUsed: DroneUsage[];
+  flightsByDate: FlightDateCount[];
+  topFlights: TopFlight[];
+  topDistanceFlights: TopDistanceFlight[];
+  batteryHealthPoints: BatteryHealthPoint[];
 }
 
 /** Result from import_log command */

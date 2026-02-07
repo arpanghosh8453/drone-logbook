@@ -6,6 +6,8 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -35,3 +37,4 @@ jobs:
         with:
           projectPath: '.'
           args: '--verbose'
+          releaseId: ${{ github.event.release.id }}

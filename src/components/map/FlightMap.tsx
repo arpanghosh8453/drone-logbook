@@ -67,7 +67,7 @@ export function FlightMap({ track, themeMode }: FlightMapProps) {
     bearing: 0,
   });
   const [is3D, setIs3D] = useState(() => getSessionBool('map:is3d', true));
-  const [isSatellite, setIsSatellite] = useState(() => getSessionBool('map:isSatellite', false));
+  const [isSatellite, setIsSatellite] = useState(() => getSessionBool('map:isSatellite', true));
   const mapRef = useRef<MapRef | null>(null);
 
   const resolvedTheme = useMemo(() => {

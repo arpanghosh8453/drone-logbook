@@ -13,7 +13,7 @@ use std::sync::Mutex;
 use duckdb::{params, Connection, Result as DuckResult};
 use thiserror::Error;
 
-use crate::models::{BatteryUsage, Flight, FlightMetadata, OverviewStats, TelemetryPoint, TelemetryRecord};
+use crate::models::{BatteryHealthPoint, BatteryUsage, DroneUsage, Flight, FlightDateCount, FlightMetadata, OverviewStats, TelemetryPoint, TelemetryRecord, TopDistanceFlight, TopFlight};
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -762,23 +762,49 @@ impl Database {
     pub fn get_overview_stats(&self) -> Result<OverviewStats, DatabaseError> {
         let conn = self.conn.lock().unwrap();
 
-        let (total_flights, total_distance, total_duration, total_points): (i64, f64, f64, i64) =
+        // Basic aggregate stats
+        let (total_flights, total_distance, total_duration, total_points, max_altitude): (i64, f64, f64, i64, f64) =
             conn.query_row(
                 r#"
                 SELECT
                     COUNT(*)::BIGINT,
                     COALESCE(SUM(total_distance), 0)::DOUBLE,
                     COALESCE(SUM(duration_secs), 0)::DOUBLE,
-                    COALESCE(SUM(point_count), 0)::BIGINT
+                    COALESCE(SUM(point_count), 0)::BIGINT,
+                    COALESCE(MAX(max_altitude), 0)::DOUBLE
                 FROM flights
                 "#,
                 [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
             )?;
 
+        // Calculate max distance from home using haversine formula in SQL
+        // This gives us the max straight-line distance from home point for each flight
+        let max_distance_from_home: f64 = conn.query_row(
+            r#"
+            SELECT COALESCE(MAX(
+                CASE WHEN home_lat IS NOT NULL AND home_lon IS NOT NULL 
+                     AND t.latitude IS NOT NULL AND t.longitude IS NOT NULL
+                THEN 
+                    6371000 * 2 * ASIN(SQRT(
+                        POWER(SIN(RADIANS(t.latitude - f.home_lat) / 2), 2) +
+                        COS(RADIANS(f.home_lat)) * COS(RADIANS(t.latitude)) *
+                        POWER(SIN(RADIANS(t.longitude - f.home_lon) / 2), 2)
+                    ))
+                ELSE 0 END
+            ), 0)::DOUBLE
+            FROM flights f
+            LEFT JOIN telemetry t ON f.id = t.flight_id
+            WHERE f.home_lat IS NOT NULL AND f.home_lon IS NOT NULL
+            "#,
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0.0);
+
+        // Battery usage with total duration
         let mut stmt = conn.prepare(
             r#"
-            SELECT battery_serial, COUNT(*)::BIGINT AS flight_count
+            SELECT battery_serial, COUNT(*)::BIGINT AS flight_count, COALESCE(SUM(duration_secs), 0)::DOUBLE AS total_duration
             FROM flights
             WHERE battery_serial IS NOT NULL AND battery_serial <> ''
             GROUP BY battery_serial
@@ -791,6 +817,153 @@ impl Database {
                 Ok(BatteryUsage {
                     battery_serial: row.get(0)?,
                     flight_count: row.get(1)?,
+                    total_duration_secs: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Drone usage stats
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT 
+                COALESCE(drone_model, 'Unknown') AS drone_model, 
+                drone_serial,
+                aircraft_name,
+                COUNT(*)::BIGINT AS flight_count
+            FROM flights
+            GROUP BY drone_model, drone_serial, aircraft_name
+            ORDER BY flight_count DESC
+            "#,
+        )?;
+
+        let drones_used = stmt
+            .query_map([], |row| {
+                Ok(DroneUsage {
+                    drone_model: row.get(0)?,
+                    drone_serial: row.get(1)?,
+                    aircraft_name: row.get(2)?,
+                    flight_count: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Flights by date for activity heatmap (last 365 days)
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT 
+                CAST(DATE_TRUNC('day', start_time) AS DATE)::VARCHAR AS flight_date,
+                COUNT(*)::BIGINT AS count
+            FROM flights
+            WHERE start_time IS NOT NULL 
+              AND start_time >= CURRENT_DATE - INTERVAL '365 days'
+            GROUP BY DATE_TRUNC('day', start_time)
+            ORDER BY flight_date ASC
+            "#,
+        )?;
+
+        let flights_by_date = stmt
+            .query_map([], |row| {
+                Ok(FlightDateCount {
+                    date: row.get(0)?,
+                    count: row.get(1)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Top 3 longest flights
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT 
+                id,
+                COALESCE(display_name, file_name) AS display_name,
+                COALESCE(duration_secs, 0)::DOUBLE AS duration_secs,
+                CAST(start_time AS VARCHAR) AS start_time
+            FROM flights
+            WHERE duration_secs IS NOT NULL
+            ORDER BY duration_secs DESC
+            LIMIT 3
+            "#,
+        )?;
+
+        let top_flights = stmt
+            .query_map([], |row| {
+                Ok(TopFlight {
+                    id: row.get(0)?,
+                    display_name: row.get(1)?,
+                    duration_secs: row.get(2)?,
+                    start_time: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Max distance from home per flight (for top furthest calculation)
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+                f.id,
+                COALESCE(f.display_name, f.file_name) AS display_name,
+                COALESCE(MAX(
+                    CASE WHEN f.home_lat IS NOT NULL AND f.home_lon IS NOT NULL
+                         AND t.latitude IS NOT NULL AND t.longitude IS NOT NULL
+                    THEN
+                        6371000 * 2 * ASIN(SQRT(
+                            POWER(SIN(RADIANS(t.latitude - f.home_lat) / 2), 2) +
+                            COS(RADIANS(f.home_lat)) * COS(RADIANS(t.latitude)) *
+                            POWER(SIN(RADIANS(t.longitude - f.home_lon) / 2), 2)
+                        ))
+                    ELSE 0 END
+                ), 0)::DOUBLE AS max_distance_from_home_m,
+                CAST(f.start_time AS VARCHAR) AS start_time
+            FROM flights f
+            LEFT JOIN telemetry t ON f.id = t.flight_id
+            GROUP BY f.id, f.display_name, f.file_name, f.start_time
+            ORDER BY max_distance_from_home_m DESC
+            "#,
+        )?;
+
+        let top_distance_flights = stmt
+            .query_map([], |row| {
+                Ok(TopDistanceFlight {
+                    id: row.get(0)?,
+                    display_name: row.get(1)?,
+                    max_distance_from_home_m: row.get(2)?,
+                    start_time: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Battery health points (delta % / minute) per flight
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+                f.id,
+                f.battery_serial,
+                CAST(f.start_time AS VARCHAR) AS start_time,
+                COALESCE(f.duration_secs, 0)::DOUBLE AS duration_secs,
+                (MAX(t.battery_percent) - MIN(t.battery_percent))::DOUBLE AS delta_percent
+            FROM flights f
+            JOIN telemetry t ON f.id = t.flight_id
+            WHERE f.battery_serial IS NOT NULL AND f.battery_serial <> ''
+              AND t.battery_percent IS NOT NULL
+            GROUP BY f.id, f.battery_serial, f.start_time, f.duration_secs
+            ORDER BY f.start_time ASC
+            "#,
+        )?;
+
+        let battery_health_points = stmt
+            .query_map([], |row| {
+                let duration_secs: f64 = row.get(3)?;
+                let duration_mins = if duration_secs > 0.0 { duration_secs / 60.0 } else { 0.0 };
+                let delta_percent: f64 = row.get(4)?;
+                let rate_per_min = if duration_mins > 0.0 { delta_percent / duration_mins } else { 0.0 };
+
+                Ok(BatteryHealthPoint {
+                    flight_id: row.get(0)?,
+                    battery_serial: row.get(1)?,
+                    start_time: row.get(2)?,
+                    duration_mins,
+                    delta_percent,
+                    rate_per_min,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -800,7 +973,14 @@ impl Database {
             total_distance_m: total_distance,
             total_duration_secs: total_duration,
             total_points,
+            max_altitude_m: max_altitude,
+            max_distance_from_home_m: max_distance_from_home,
             batteries_used,
+            drones_used,
+            flights_by_date,
+            top_flights,
+            top_distance_flights,
+            battery_health_points,
         })
     }
 

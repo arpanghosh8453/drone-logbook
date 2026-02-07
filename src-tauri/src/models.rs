@@ -137,7 +137,14 @@ pub struct OverviewStats {
     pub total_distance_m: f64,
     pub total_duration_secs: f64,
     pub total_points: i64,
+    pub max_altitude_m: f64,
+    pub max_distance_from_home_m: f64,
     pub batteries_used: Vec<BatteryUsage>,
+    pub drones_used: Vec<DroneUsage>,
+    pub flights_by_date: Vec<FlightDateCount>,
+    pub top_flights: Vec<TopFlight>,
+    pub top_distance_flights: Vec<TopDistanceFlight>,
+    pub battery_health_points: Vec<BatteryHealthPoint>,
 }
 
 /// Battery usage summary
@@ -146,6 +153,58 @@ pub struct OverviewStats {
 pub struct BatteryUsage {
     pub battery_serial: String,
     pub flight_count: i64,
+    /// Total flight duration for this battery in seconds
+    pub total_duration_secs: f64,
+}
+
+/// Drone usage summary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DroneUsage {
+    pub drone_model: String,
+    pub drone_serial: Option<String>,
+    pub aircraft_name: Option<String>,
+    pub flight_count: i64,
+}
+
+/// Flight count per date for activity heatmap
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlightDateCount {
+    pub date: String,
+    pub count: i64,
+}
+
+/// Top flight summary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopFlight {
+    pub id: i64,
+    pub display_name: String,
+    pub duration_secs: f64,
+    pub start_time: Option<String>,
+}
+
+/// Top flight by max distance from home
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopDistanceFlight {
+    pub id: i64,
+    pub display_name: String,
+    pub max_distance_from_home_m: f64,
+    pub start_time: Option<String>,
+}
+
+/// Battery health scatter/line point per flight
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatteryHealthPoint {
+    pub flight_id: i64,
+    pub battery_serial: String,
+    pub start_time: Option<String>,
+    pub duration_mins: f64,
+    pub delta_percent: f64,
+    pub rate_per_min: f64,
 }
 
 /// Telemetry data formatted for ECharts
