@@ -573,30 +573,6 @@ function StatCard({
 }
 
 function ActivityHeatmap({ flightsByDate }: { flightsByDate: { date: string; count: number }[] }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
-
-    const updateWidth = () => {
-      const rect = element.getBoundingClientRect();
-      setContainerWidth(rect.width);
-    };
-
-    updateWidth();
-
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(updateWidth);
-      observer.observe(element);
-      return () => observer.disconnect();
-    }
-
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
-
   const maxWidth = 1170;
   const labelWidth = 28;
   const gapSize = 2;
@@ -683,11 +659,7 @@ function ActivityHeatmap({ flightsByDate }: { flightsByDate: { date: string; cou
 
   return (
     <div className="w-full flex justify-center">
-      <div
-        ref={containerRef}
-        className="w-full flex justify-center overflow-x-hidden"
-        style={{ maxWidth: `${maxWidth}px` }}
-      >
+      <div className="w-full flex justify-center overflow-x-hidden" style={{ maxWidth: `${maxWidth}px` }}>
         <div className="flex flex-col" style={{ width: `${contentWidth}px` }}>
           {/* Month labels */}
           <div
