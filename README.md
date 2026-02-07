@@ -37,8 +37,9 @@
 - **Theme & Units**: Light/Dark/System theme and Metric/Imperial units
 - **Exports**: Direct CSV, JSON, GPX, and KML export from the flight stats bar
 
-## Accessing the log files
-You first need to collect the log files that you can import to this application. This project currently only support DJI log files in the `.txt` format. For DJI fly apps on Android or RC remotes, they are usually in `Internal Storage > Android > data > dji.go.v5 > files > FlightRecord`. For iOS, Connect your iPhone/iPad to a computer, open iTunes/Finder, select the device, go to the "File Sharing" tab, select the DJI app, and copy the "Logs" folder. If you are already using Airdata sync, yoiu can download the original logs files directly from there too. 
+## Accessing the log fileshttps://github.com/arpanghosh8453/dji-logbook/
+
+You first need to collect the log files that you can import to this application. This project currently only support modern DJI log files in the `.txt` format. For DJI fly apps on Android or RC remotes, they are usually in `Internal Storage > Android > data > dji.go.v5 > files > FlightRecord`. For iOS, Connect your iPhone/iPad to a computer, open iTunes/Finder, select the device, go to the "File Sharing" tab, select the DJI app, and copy the "Logs" folder. If you are already using Airdata sync, yoiu can download the original logs files directly from there too. 
 
 You can find more details resources from this simple [google search](https://www.google.com/search?q=where+can+i+find+the+DJI+log+files&oq=where+can+i+find+the+DJI+log+files)
 
