@@ -6,6 +6,7 @@
 //! - Optimized bulk inserts using Appender
 //! - Downsampled query retrieval for large datasets
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -402,8 +403,16 @@ impl Database {
         // Use DuckDB Appender for high-performance bulk inserts
         let mut appender = conn.appender("telemetry")?;
 
+        let mut inserted = 0usize;
+        let mut skipped = 0usize;
+        let mut seen_timestamps: HashSet<i64> = HashSet::with_capacity(points.len());
+
         for point in points {
-            appender.append_row(params![
+            if !seen_timestamps.insert(point.timestamp_ms) {
+                skipped += 1;
+                continue;
+            }
+            match appender.append_row(params![
                 flight_id,
                 point.timestamp_ms,
                 point.latitude,
@@ -432,17 +441,31 @@ impl Database {
                 point.rc_signal,
                 point.rc_uplink,
                 point.rc_downlink,
-            ])?;
+            ]) {
+                Ok(()) => inserted += 1,
+                Err(err) => {
+                    let message = err.to_string().to_lowercase();
+                    if message.contains("primary key")
+                        || message.contains("unique key")
+                        || message.contains("duplicate key")
+                    {
+                        skipped += 1;
+                        continue;
+                    }
+                    return Err(DatabaseError::from(err));
+                }
+            }
         }
 
         appender.flush()?;
 
         log::info!(
-            "Bulk inserted {} telemetry points for flight {}",
-            points.len(),
-            flight_id
+            "Bulk inserted {} telemetry points for flight {} ({} skipped)",
+            inserted,
+            flight_id,
+            skipped
         );
-        Ok(points.len())
+        Ok(inserted)
     }
 
     /// Get all flights metadata (for the flight list sidebar)
