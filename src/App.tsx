@@ -1,6 +1,43 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useFlightStore } from '@/stores/flightStore';
 import { Dashboard } from '@/components/dashboard/Dashboard';
+
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  state = { hasError: false, error: undefined as Error | undefined };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('App crashed:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full bg-dji-dark text-gray-200 flex items-center justify-center p-6">
+          <div className="max-w-md text-center space-y-3">
+            <h2 className="text-lg font-semibold text-white">Something went wrong</h2>
+            <p className="text-sm text-gray-400">
+              The app hit an unexpected error. Please restart the app. If this keeps happening, let us know.
+            </p>
+            {this.state.error && (
+              <pre className="text-xs text-gray-500 whitespace-pre-wrap break-words">
+                {this.state.error.message}
+              </pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function App() {
   const { loadFlights, error, clearError, donationAcknowledged, themeMode } = useFlightStore();
@@ -14,6 +51,21 @@ function App() {
     loadFlights();
   }, [loadFlights]);
 
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('Window error:', event.error || event.message);
+    };
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled rejection:', event.reason);
+    };
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
+
   const showDonationBanner = useMemo(
     () => !donationAcknowledged && !bannerDismissed,
     [donationAcknowledged, bannerDismissed]
@@ -21,9 +73,12 @@ function App() {
 
   const resolvedTheme = useMemo(() => {
     if (themeMode === 'system') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light';
+      if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+      }
+      return 'dark';
     }
     return themeMode;
   }, [themeMode]);
@@ -110,7 +165,9 @@ function App() {
       )}
 
       {/* Main Dashboard */}
-      <Dashboard />
+      <AppErrorBoundary>
+        <Dashboard />
+      </AppErrorBoundary>
     </div>
   );
 }

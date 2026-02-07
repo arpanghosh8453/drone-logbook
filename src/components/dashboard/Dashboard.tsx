@@ -63,7 +63,10 @@ export function Dashboard() {
 
   useEffect(() => {
     const applyTheme = (mode: 'system' | 'dark' | 'light') => {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const prefersDark =
+        typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : true;
       const resolved = mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode;
       document.body.classList.remove('theme-dark', 'theme-light');
       document.body.classList.add(resolved === 'dark' ? 'theme-dark' : 'theme-light');
@@ -71,10 +74,13 @@ export function Dashboard() {
 
     applyTheme(themeMode);
 
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => themeMode === 'system' && applyTheme('system');
-    media.addEventListener('change', handler);
-    return () => media.removeEventListener('change', handler);
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      const media = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => themeMode === 'system' && applyTheme('system');
+      media.addEventListener('change', handler);
+      return () => media.removeEventListener('change', handler);
+    }
+    return undefined;
   }, [themeMode]);
 
   useEffect(() => {

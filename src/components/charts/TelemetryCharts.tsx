@@ -328,56 +328,6 @@ function createAltitudeSpeedChart(
   ]);
   const speedRange = computeRange(speedSeries);
 
-  const series: LineSeriesOption[] = [
-    ...(showCombined
-      ? [
-          {
-            name: 'RC Signal',
-            type: 'line',
-            data: data.rcSignal,
-            smooth: true,
-            symbol: 'none',
-            itemStyle: {
-              color: '#22c55e',
-            },
-            lineStyle: {
-              color: '#22c55e',
-              width: 1.5,
-            },
-          },
-        ]
-      : [
-          {
-            name: 'RC Uplink',
-            type: 'line',
-            data: rcUplink,
-            smooth: true,
-            symbol: 'none',
-            itemStyle: {
-              color: '#22c55e',
-            },
-            lineStyle: {
-              color: '#22c55e',
-              width: 1.5,
-            },
-          },
-          {
-            name: 'RC Downlink',
-            type: 'line',
-            data: rcDownlink,
-            smooth: true,
-            symbol: 'none',
-            itemStyle: {
-              color: '#38bdf8',
-            },
-            lineStyle: {
-              color: '#38bdf8',
-              width: 1.5,
-            },
-          },
-        ]),
-  ];
-
   return {
     ...baseChartConfig,
     tooltip: {
@@ -760,6 +710,55 @@ function createRcSignalChart(
   const hasUplink = rcUplink.some((val) => val !== null && val !== undefined);
   const hasDownlink = rcDownlink.some((val) => val !== null && val !== undefined);
   const showCombined = !hasUplink && !hasDownlink;
+  const series: LineSeriesOption[] = [
+    ...(showCombined
+      ? [
+          {
+            name: 'RC Signal',
+            type: 'line',
+            data: data.rcSignal,
+            smooth: true,
+            symbol: 'none',
+            itemStyle: {
+              color: '#22c55e',
+            },
+            lineStyle: {
+              color: '#22c55e',
+              width: 1.5,
+            },
+          },
+        ]
+      : [
+          {
+            name: 'RC Uplink',
+            type: 'line',
+            data: rcUplink,
+            smooth: true,
+            symbol: 'none',
+            itemStyle: {
+              color: '#22c55e',
+            },
+            lineStyle: {
+              color: '#22c55e',
+              width: 1.5,
+            },
+          },
+          {
+            name: 'RC Downlink',
+            type: 'line',
+            data: rcDownlink,
+            smooth: true,
+            symbol: 'none',
+            itemStyle: {
+              color: '#38bdf8',
+            },
+            lineStyle: {
+              color: '#38bdf8',
+              width: 1.5,
+            },
+          },
+        ]),
+  ];
   return {
     ...baseChartConfig,
     tooltip: {
@@ -779,9 +778,9 @@ function createRcSignalChart(
     yAxis: {
       type: 'value',
       name: 'RC Signal',
-          min: 0,
-          max: 100,
-          interval: 50,
+      min: 0,
+      max: 100,
+      interval: 50,
       axisLine: {
         lineStyle: {
           color: '#22c55e',
