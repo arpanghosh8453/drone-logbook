@@ -133,7 +133,8 @@
       "labels": "Device/SN/Battery tags stylized as pills.",
       "charts": "Light theme gridlines, auto axis ranges with rounding, right padding to avoid label clipping, RC ticks fixed (0/50/100).",
       "battery_chart": "Low battery region shown as semi-transparent red band; voltage plotted on hidden axis, temp labeled on right.",
-      "gps_chart": "Height increased to 200px."
+      "gps_chart": "Height increased to 200px.",
+      "delete_confirm": "Inline confirmations for single-flight delete and delete-all logs in Settings."
     },
     "exports": {
       "flight_stats": "Export dropdown for CSV/JSON/GPX/KML with derived distance-to-home in JSON/CSV."
@@ -148,6 +149,14 @@
     },
     "logging": {
       "tauri": "tauri-plugin-log enabled; console attached in frontend; log directory exposed in Settings."
+    },
+    "startup": {
+      "selection": "Last selected flight is persisted; no auto-load on fresh start unless a last selection exists.",
+      "logging": "UI renders without waiting for log plugin initialization."
+    },
+    "api_key": {
+      "cache": "API key cache updates immediately after saving (no restart needed).",
+      "default": "Default key is used when no key is configured; users can override in Settings."
     }
   },
   "behavior": {

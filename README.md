@@ -17,6 +17,7 @@ A high-performance desktop application for analyzing DJI drone flight logs. Buil
 - 🧭 **Overview Dashboard**: Aggregate totals, averages, and battery usage insights
 - 🎨 **Theme & Units**: Light/Dark/System theme and Metric/Imperial units
 - ✏️ **Editable Flight Names**: Rename flights directly in the sidebar
+- 🗑️ **Safe Deletion**: Confirmations for single-flight and delete-all actions
 - 🔍 **Synced Zoom**: Pan/zoom charts together with reset zoom
 - 📦 **Exports**: CSV, JSON, GPX, and KML export from the flight stats bar
 - 🧾 **App Logging**: File + console logs via tauri-plugin-log; log directory shown in Settings
@@ -137,7 +138,7 @@ The built application will be in `src-tauri/target/release/bundle/`.
 
 ## Configuration
 
-- **DJI API Key**: Stored locally in `config.json` (never sent to third parties except DJI API). You can also provide it via `.env`.
+- **DJI API Key**: Stored locally in `config.json` (never sent to third parties except DJI API). You can also provide it via `.env`. The standalone app ships with a default key, but users should enter their own to avoid rate limits.
 - **Database Location**: Stored in the platform-specific app data directory (e.g., AppData on Windows, Application Support on macOS, and local share on Linux).
 - **Log Files**: App logs are written to the platform-specific log directory and surfaced in Settings.
 
