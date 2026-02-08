@@ -93,10 +93,15 @@
       "Map: satellite style toggle, gradient flight path with start/end markers.",
       "Map: deck.gl 3D path overlay; map toggles persist in session.",
       "Map: Catmull-Rom spline smoothing, color-by modes (progress/height/speed/distance), hover tooltip.",
+      "Map: Flight replay with play/pause, seek slider, speed selector (0.5x-16x), and 3D-aware aircraft marker.",
+      "Map: Aircraft toggle to show/hide replay controls and marker. Satellite maxzoom 18, terrain DEM maxzoom 12.",
       "Export: CSV/JSON/GPX/KML downloads from flight stats.",
       "Logging: comprehensive debug logging via tauri-plugin-log (desktop) or env_logger (web).",
       "Crash protection: parser uses spawn_blocking + catch_unwind + timeout. Telemetry validated for GPS range, finite values, altitude/speed sanity.",
       "UI polish: theme variables, tag styling for device/serials, modal scrollbar lock.",
+      "UI polish: Import progress counter showing current file out of total during batch imports.",
+      "UI polish: Sidebar width remembered across sessions via localStorage.",
+      "UI polish: Layout clipping fixes for Tauri on Linux (100vh -> 100% for title bar area).",
       "Data safety: DB backup, corruption handling, telemetry rebuild when column order mismatches.",
       "Docker/Web deployment: Axum REST API mirroring all Tauri commands, Nginx reverse proxy, multi-stage Docker build.",
       "Dual-mode frontend: api.ts adapter uses invoke() for Tauri, fetch() for web. All @tauri-apps imports are dynamic."
@@ -200,6 +205,17 @@
     },
     "dead_code_cleanup": {
       "description": "Removed unused DatabaseError variants (AppDataDirNotFound, NotInitialized) and methods (keychains_dir, get_flight_track, store_keychain, get_keychain) to eliminate compiler warnings."
+    },
+    "v1_4_0_ui_improvements": {
+      "description": "Flight replay system, map fixes, layout fixes, chart zoom improvements, import counter, sidebar persistence.",
+      "flight_replay": "FlightMap.tsx: play/pause, seek slider, speed selector (0.5x-16x), 3D-aware DeckGL ScatterplotLayer marker with altitude support.",
+      "aircraft_toggle": "FlightMap.tsx: Aircraft toggle in map controls to show/hide replay controls and marker.",
+      "sky_layer_fix": "FlightMap.tsx: Removed MapLibre-incompatible sky layer (Mapbox-only) from enableTerrain() that was crashing onLoad.",
+      "map_zoom_fix": "FlightMap.tsx: Map maxZoom=22, satellite source maxzoom=18, terrain DEM maxzoom=12 (corrected from actual TileJSON).",
+      "layout_clipping": "Dashboard.tsx h-screen to h-full, min-h-0 throughout flex chain. App.tsx flex-col overflow-hidden. index.html 100vh to 100%.",
+      "import_counter": "FlightImporter.tsx: Shows 'X of Y files' during batch imports.",
+      "sidebar_persistence": "Dashboard.tsx: Sidebar width saved to localStorage and restored on load.",
+      "replay_slider_styles": "index.css: Custom slider thumb styles for the flight replay seek bar."
     }
   },
   "behavior": {

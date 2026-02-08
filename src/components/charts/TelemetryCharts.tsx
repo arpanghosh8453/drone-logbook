@@ -290,7 +290,7 @@ function createBaseChartConfig(theme: 'dark' | 'light'): Partial<EChartsOption> 
         type: 'inside',
         xAxisIndex: 0,
         filterMode: 'filter',
-        zoomOnMouseWheel: true,
+        zoomOnMouseWheel: 'ctrl',
         moveOnMouseWheel: false,
         moveOnMouseMove: true,
         preventDefaultMouseMove: false,
