@@ -93,6 +93,9 @@ npm run tauri
 
 The app can also be deployed as a self-hosted web application using Docker. This uses an Axum REST backend instead of Tauri IPC, with Nginx serving the frontend and proxying API requests.
 
+> [!IMPORTANT]
+> This Web interface is meant for Desktop or larger screen viewing only. This interface is not mobile view friendly. 
+
 ### Quick start (recommended)
 
 Pull the pre-built image from GitHub Container Registry:
