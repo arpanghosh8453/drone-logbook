@@ -19,6 +19,8 @@ interface FlightMapProps {
   themeMode: 'system' | 'dark' | 'light';
 }
 
+type ColorByMode = 'progress' | 'height' | 'speed' | 'distance';
+
 const MAP_STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
@@ -112,6 +114,74 @@ function smoothTrack(
   return result;
 }
 
+// ─── Haversine distance in meters ───────────────────────────────────────────
+function haversineM(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─── Color ramps ────────────────────────────────────────────────────────────
+// Maps a normalized value 0→1 to a color via multi-stop gradient.
+function valueToColor(
+  t: number,
+  ramp: [number, number, number][]
+): [number, number, number] {
+  const clamped = Math.max(0, Math.min(1, t));
+  const maxIdx = ramp.length - 1;
+  const scaled = clamped * maxIdx;
+  const lo = Math.floor(scaled);
+  const hi = Math.min(lo + 1, maxIdx);
+  const f = scaled - lo;
+  return [
+    Math.round(ramp[lo][0] + (ramp[hi][0] - ramp[lo][0]) * f),
+    Math.round(ramp[lo][1] + (ramp[hi][1] - ramp[lo][1]) * f),
+    Math.round(ramp[lo][2] + (ramp[hi][2] - ramp[lo][2]) * f),
+  ];
+}
+
+// Yellow → Red  (start→end progress)
+const RAMP_PROGRESS: [number, number, number][] = [
+  [250, 204, 21],
+  [239, 68, 68],
+];
+// Green → Yellow → Red  (low→high value)
+const RAMP_HEIGHT: [number, number, number][] = [
+  [34, 197, 94],
+  [250, 204, 21],
+  [239, 68, 68],
+];
+// Blue → Cyan → Green → Yellow → Red  (speed)
+const RAMP_SPEED: [number, number, number][] = [
+  [59, 130, 246],
+  [34, 211, 238],
+  [34, 197, 94],
+  [250, 204, 21],
+  [239, 68, 68],
+];
+// Green → Yellow → Orange → Red  (distance from home)
+const RAMP_DISTANCE: [number, number, number][] = [
+  [34, 197, 94],
+  [250, 204, 21],
+  [251, 146, 60],
+  [239, 68, 68],
+];
+
+const COLOR_BY_OPTIONS: { value: ColorByMode; label: string }[] = [
+  { value: 'progress', label: 'Start → End' },
+  { value: 'height', label: 'Height' },
+  { value: 'speed', label: 'Speed' },
+  { value: 'distance', label: 'Dist. from Home' },
+];
+
 export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps) {
   const [viewState, setViewState] = useState({
     longitude: 0,
@@ -122,6 +192,10 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
   });
   const [is3D, setIs3D] = useState(() => getSessionBool('map:is3d', true));
   const [isSatellite, setIsSatellite] = useState(() => getSessionBool('map:isSatellite', true));
+  const [colorBy, setColorBy] = useState<ColorByMode>(() => {
+    if (typeof window === 'undefined') return 'progress';
+    return (window.sessionStorage.getItem('map:colorBy') as ColorByMode) || 'progress';
+  });
   const mapRef = useRef<MapRef | null>(null);
 
   const resolvedTheme = useMemo(() => {
@@ -171,19 +245,56 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
 
   const deckPathData = useMemo(() => {
     if (smoothedTrack.length < 2) return [];
-    const segments: { path: [number, number, number][]; color: [number, number, number] }[] = [];
-    const startColor: [number, number, number] = [250, 204, 21];
-    const endColor: [number, number, number] = [239, 68, 68];
 
     const toAlt = (altitude: number) => (is3D ? altitude : 0);
+    const n = smoothedTrack.length;
 
-    for (let i = 0; i < smoothedTrack.length - 1; i += 1) {
-      const t = i / Math.max(1, smoothedTrack.length - 2);
-      const color: [number, number, number] = [
-        Math.round(startColor[0] + (endColor[0] - startColor[0]) * t),
-        Math.round(startColor[1] + (endColor[1] - startColor[1]) * t),
-        Math.round(startColor[2] + (endColor[2] - startColor[2]) * t),
-      ];
+    // Pre-compute per-point values depending on colorBy mode
+    let values: number[] | null = null;
+    let minVal = 0;
+    let maxVal = 1;
+
+    if (colorBy === 'height') {
+      values = smoothedTrack.map((p) => p[2]);
+      minVal = Math.min(...values);
+      maxVal = Math.max(...values);
+    } else if (colorBy === 'speed') {
+      // Approximate speed from consecutive point distance
+      values = [0];
+      for (let i = 1; i < n; i++) {
+        const d = haversineM(
+          smoothedTrack[i - 1][1], smoothedTrack[i - 1][0],
+          smoothedTrack[i][1], smoothedTrack[i][0]
+        );
+        values.push(d); // proportional to speed (uniform time steps after smoothing)
+      }
+      minVal = Math.min(...values);
+      maxVal = Math.max(...values);
+    } else if (colorBy === 'distance') {
+      const hLat = homeLat ?? smoothedTrack[0][1];
+      const hLon = homeLon ?? smoothedTrack[0][0];
+      values = smoothedTrack.map((p) => haversineM(hLat, hLon, p[1], p[0]));
+      minVal = Math.min(...values);
+      maxVal = Math.max(...values);
+    }
+
+    const range = maxVal - minVal || 1;
+
+    const getRamp = () => {
+      switch (colorBy) {
+        case 'height': return RAMP_HEIGHT;
+        case 'speed': return RAMP_SPEED;
+        case 'distance': return RAMP_DISTANCE;
+        default: return RAMP_PROGRESS;
+      }
+    };
+    const ramp = getRamp();
+
+    const segments: { path: [number, number, number][]; color: [number, number, number] }[] = [];
+
+    for (let i = 0; i < n - 1; i++) {
+      const t = values ? (values[i] - minVal) / range : i / Math.max(1, n - 2);
+      const color = valueToColor(t, ramp);
       const [lng1, lat1, alt1] = smoothedTrack[i];
       const [lng2, lat2, alt2] = smoothedTrack[i + 1];
       segments.push({
@@ -196,7 +307,7 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
     }
 
     return segments;
-  }, [is3D, smoothedTrack]);
+  }, [is3D, smoothedTrack, colorBy, homeLat, homeLon]);
 
   const deckLayers = useMemo(() => {
     if (deckPathData.length === 0) return [];
@@ -206,10 +317,10 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
         id: 'flight-path-shadow',
         data: deckPathData,
         getPath: (d) => d.path,
-        getColor: [0, 0, 0, 80],
-        getWidth: 10,
+        getColor: [0, 0, 0, 40],
+        getWidth: 7,
         widthUnits: 'pixels',
-        widthMinPixels: 8,
+        widthMinPixels: 6,
         capRounded: true,
         jointRounded: true,
         billboard: true,
@@ -303,6 +414,12 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
   }, [isSatellite]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('map:colorBy', colorBy);
+    }
+  }, [colorBy]);
+
+  useEffect(() => {
     if (is3D) {
       enableTerrain();
     }
@@ -345,6 +462,23 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
             checked={isSatellite}
             onChange={setIsSatellite}
           />
+
+          {/* Color-by dropdown */}
+          <div className="pt-1 border-t border-gray-600/50">
+            <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-wide">Color by</label>
+            <select
+              value={colorBy}
+              onChange={(e) => setColorBy(e.target.value as ColorByMode)}
+              className="w-full text-xs bg-dji-surface border border-gray-600 text-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-dji-primary appearance-none cursor-pointer"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239ca3af' fill='none' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center', paddingRight: '22px' }}
+            >
+              {COLOR_BY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Start Marker — pulsing yellow */}
@@ -376,22 +510,11 @@ export function FlightMap({ track, homeLat, homeLon, themeMode }: FlightMapProps
           </Marker>
         )}
 
-        {/* Home Marker — blue crosshair */}
+        {/* Home Marker — "H" in a circle */}
         {homeLat != null && homeLon != null && Math.abs(homeLat) > 0.000001 && (
           <Marker longitude={homeLon} latitude={homeLat} anchor="center">
-            <div className="relative flex items-center justify-center">
-              <div className="w-5 h-5 rounded-full border-2 border-sky-400 bg-sky-400/20 flex items-center justify-center shadow-lg z-10">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="6" cy="6" r="2" stroke="#38bdf8" strokeWidth="1.5" fill="none"/>
-                  <line x1="6" y1="0" x2="6" y2="4" stroke="#38bdf8" strokeWidth="1"/>
-                  <line x1="6" y1="8" x2="6" y2="12" stroke="#38bdf8" strokeWidth="1"/>
-                  <line x1="0" y1="6" x2="4" y2="6" stroke="#38bdf8" strokeWidth="1"/>
-                  <line x1="8" y1="6" x2="12" y2="6" stroke="#38bdf8" strokeWidth="1"/>
-                </svg>
-              </div>
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-semibold bg-sky-500 text-white px-1.5 py-0.5 rounded shadow whitespace-nowrap z-10">
-                HOME
-              </div>
+            <div className="w-6 h-6 rounded-full border-2 border-white bg-sky-500 flex items-center justify-center shadow-lg">
+              <span className="text-[11px] font-bold text-white leading-none">H</span>
             </div>
           </Marker>
         )}
