@@ -508,7 +508,7 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, themeMode }: 
         <NavigationControl position="top-right" />
 
         {/* Map Controls */}
-        <div className="absolute top-2 left-2 z-10 bg-dji-dark/80 border border-gray-700 rounded-xl px-3 py-2 space-y-2 shadow-lg">
+        <div className="map-overlay absolute top-2 left-2 z-10 bg-dji-dark/80 border border-gray-700 rounded-xl px-3 py-2 space-y-2 shadow-lg">
           <ToggleRow
             label="3D Terrain"
             checked={is3D}
@@ -531,7 +531,7 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, themeMode }: 
             <select
               value={colorBy}
               onChange={(e) => setColorBy(e.target.value as ColorByMode)}
-              className="w-full text-xs bg-dji-surface border border-gray-600 text-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-dji-primary appearance-none cursor-pointer"
+              className="map-select w-full text-xs bg-dji-surface border border-gray-600 text-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-dji-primary appearance-none cursor-pointer"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239ca3af' fill='none' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center', paddingRight: '22px' }}
             >
               {COLOR_BY_OPTIONS.map((opt) => (
@@ -601,7 +601,7 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, themeMode }: 
           className="pointer-events-none absolute z-50"
           style={{ left: hoverInfo.x + 12, top: hoverInfo.y - 60 }}
         >
-          <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-600/60 rounded-lg px-3 py-2 shadow-xl text-[11px] text-gray-200 space-y-0.5 min-w-[160px]">
+          <div className="map-tooltip bg-gray-900/95 backdrop-blur-sm border border-gray-600/60 rounded-lg px-3 py-2 shadow-xl text-[11px] text-gray-200 space-y-0.5 min-w-[160px]">
             {durationSecs != null && durationSecs > 0 && (
               <div className="flex justify-between gap-4">
                 <span className="text-gray-400">Flight Time</span>

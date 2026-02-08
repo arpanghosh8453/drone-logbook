@@ -66,6 +66,47 @@ body.theme-light .hover\:text-gray-200:hover {
   color: #334155 !important;
 }
 
+/* Light mode: map controls dropdown — darker text & visible options */
+body.theme-light .map-select {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+body.theme-light .map-select option {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+/* Light mode: map hover tooltip — light background with dark text */
+body.theme-light .map-tooltip {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(203, 213, 225, 0.7) !important;
+  color: #334155 !important;
+}
+
+body.theme-light .map-tooltip .text-gray-400 {
+  color: #64748b !important;
+}
+
+body.theme-light .map-tooltip .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+body.theme-light .map-tooltip .text-white {
+  color: #0f172a !important;
+}
+
+body.theme-light .map-tooltip .border-gray-700\/60 {
+  border-color: rgba(203, 213, 225, 0.6) !important;
+}
+
+/* Light mode: map controls panel — light background */
+body.theme-light .map-overlay {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: #e2e8f0 !important;
+}
+
 body.modal-open {
   overflow: hidden;
 }
