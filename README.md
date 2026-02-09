@@ -60,6 +60,7 @@
 - **Battery Health Insights**: Per-battery health bars with inline serial renaming, and per‑minute charge usage history timeline with zoom/scroll
 - **Theme & Units**: Light/Dark/System theme and Metric/Imperial units
 - **Exports**: Direct CSV, JSON, GPX, and KML export from the flight stats bar
+- **Backup & Restore**: Export your entire database to a portable backup file and restore it on any instance — works on both desktop and Docker
 
 ## Accessing the DJI flight log files
 
@@ -89,7 +90,8 @@ xattr -d com.apple.quarantine <the-app-file> # you can drag and drop the app to 
 4. **Filter/Search/Sort**: Use date range, drone/device, battery serial filters, search, and sorting
 5. **Overview Filters**: Apply the same date/drone/battery filters to overview analytics (no search)
 5. **Export**: Use the Export dropdown in the stats bar (CSV/JSON/GPX/KML)
-6. **Configure Settings**: Set API key, theme, units, and view app data/log directories
+6. **Backup & Restore**: Use Settings → Backup Database to export, or Import Backup to restore
+7. **Configure Settings**: Set API key, theme, units, and view app data/log directories
 
 
 ## Building from source (Linux users)

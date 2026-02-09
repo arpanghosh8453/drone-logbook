@@ -20,6 +20,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [appDataDir, setAppDataDir] = useState('');
   const [appLogDir, setAppLogDir] = useState('');
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // True when any long-running destructive/IO operation is in progress
+  const isBusy = isBackingUp || isRestoring || isDeleting;
   const {
     unitSystem,
     setUnitSystem,
@@ -40,6 +46,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       getAppLogDir();
     }
   }, [isOpen]);
+
+  // Auto-dismiss messages after 5 seconds
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(null), 5000);
+    return () => clearTimeout(timer);
+  }, [message]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -107,6 +120,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const handleDeleteAll = async () => {
+    setIsDeleting(true);
+    setMessage(null);
     try {
       await api.deleteAllFlights();
       clearSelection();
@@ -116,6 +131,54 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setConfirmDeleteAll(false);
     } catch (err) {
       setMessage({ type: 'error', text: `Failed to delete: ${err}` });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    setMessage(null);
+    try {
+      await api.backupDatabase();
+      setMessage({ type: 'success', text: 'Database backup exported successfully!' });
+    } catch (err) {
+      setMessage({ type: 'error', text: `Backup failed: ${err}` });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsRestoring(true);
+    setMessage(null);
+    try {
+      if (api.isWebMode()) {
+        // Web mode: pick file via browser dialog
+        const files = await api.pickFiles('.backup', false);
+        if (files.length === 0) {
+          setIsRestoring(false);
+          return;
+        }
+        const msg = await api.restoreDatabase(files[0]);
+        setMessage({ type: 'success', text: msg || 'Backup restored successfully!' });
+      } else {
+        // Tauri mode: native dialog handled inside restoreDatabase
+        const msg = await api.restoreDatabase();
+        if (!msg) {
+          setIsRestoring(false);
+          return; // user cancelled
+        }
+        setMessage({ type: 'success', text: msg });
+      }
+      // Refresh data after restore
+      clearSelection();
+      await loadFlights();
+      await loadOverview();
+    } catch (err) {
+      setMessage({ type: 'error', text: `Restore failed: ${err}` });
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -126,17 +189,33 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={isBusy ? undefined : onClose}
       />
 
       {/* Modal */}
       <div className="relative bg-dji-secondary rounded-xl border border-gray-700 shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        {/* Blocking overlay while a long-running operation is in progress */}
+        {isBusy && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] rounded-xl">
+            <svg className="w-10 h-10 text-dji-primary animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+              <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+            </svg>
+            <p className="mt-3 text-sm text-gray-300">
+              {isBackingUp && 'Exporting backup…'}
+              {isRestoring && 'Restoring backup…'}
+              {isDeleting && 'Deleting all logs…'}
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h2 className="text-lg font-semibold text-white">Settings</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            disabled={isBusy}
+            className="text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -228,17 +307,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               className="input w-full"
             />
 
-            {/* Message */}
-            {message && (
-              <p
-                className={`mt-2 text-sm ${
-                  message.type === 'success' ? 'text-green-400' : 'text-red-400'
-                }`}
-              >
-                {message.text}
-              </p>
-            )}
-
             <button
               onClick={handleSave}
               disabled={isSaving || !apiKey.trim()}
@@ -246,6 +314,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             >
               {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
             </button>
+
+            {/* Message (auto-dismisses after 5s) */}
+            {message && (
+              <p
+                className={`mt-2 text-sm text-center ${
+                  message.type === 'success' ? 'text-green-400' : 'text-red-400'
+                }`}
+              >
+                {message.text}
+              </p>
+            )}
 
             <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-400">
               Donation status
@@ -292,6 +371,55 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <p className="text-xs text-gray-500 mt-2">
               Your API key is stored locally in <code className="text-gray-400">config.json</code> and never sent to any external servers except DJI's official API.
             </p>
+
+            {/* Backup & Restore */}
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={handleBackup}
+                disabled={isBusy}
+                className="flex-1 py-2 px-3 rounded-lg border border-sky-600 text-sky-400 hover:bg-sky-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isBackingUp ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    Exporting…
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+                    </svg>
+                    Backup Database
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={handleRestore}
+                disabled={isBusy}
+                className="flex-1 py-2 px-3 rounded-lg border border-amber-600 text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isRestoring ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    Restoring…
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 6l-4-4m0 0L8 6m4-4v13" />
+                    </svg>
+                    Import Backup
+                  </span>
+                )}
+              </button>
+            </div>
+
             {confirmDeleteAll ? (
               <div className="mt-4 rounded-lg border border-red-600/60 bg-red-500/10 p-3">
                 <p className="text-xs text-red-200">
@@ -315,7 +443,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             ) : (
               <button
                 onClick={() => setConfirmDeleteAll(true)}
-                className="mt-4 w-full py-2 px-3 rounded-lg border border-red-600 text-red-500 hover:bg-red-500/10 transition-colors"
+                disabled={isBusy}
+                className="mt-4 w-full py-2 px-3 rounded-lg border border-red-600 text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Delete all logs
               </button>

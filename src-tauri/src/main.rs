@@ -276,6 +276,27 @@ mod tauri_app {
             .map(|dir| dir.to_string_lossy().to_string())
     }
 
+    #[tauri::command]
+    pub async fn export_backup(dest_path: String, state: State<'_, AppState>) -> Result<bool, String> {
+        let path = std::path::PathBuf::from(&dest_path);
+        log::info!("Exporting database backup to: {}", dest_path);
+        state
+            .db
+            .export_backup(&path)
+            .map(|_| true)
+            .map_err(|e| format!("Failed to export backup: {}", e))
+    }
+
+    #[tauri::command]
+    pub async fn import_backup(src_path: String, state: State<'_, AppState>) -> Result<String, String> {
+        let path = std::path::PathBuf::from(&src_path);
+        log::info!("Importing database backup from: {}", src_path);
+        state
+            .db
+            .import_backup(&path)
+            .map_err(|e| format!("Failed to import backup: {}", e))
+    }
+
     pub fn run() {
         tauri::Builder::default()
             .plugin(
@@ -309,6 +330,8 @@ mod tauri_app {
                 set_api_key,
                 get_app_data_dir,
                 get_app_log_dir,
+                export_backup,
+                import_backup,
             ])
             .run(tauri::generate_context!())
             .expect("Failed to run DJI Logbook");

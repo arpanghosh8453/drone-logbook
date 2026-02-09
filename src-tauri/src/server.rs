@@ -294,6 +294,65 @@ async fn get_app_log_dir(
     Json(state.db.data_dir.to_string_lossy().to_string())
 }
 
+/// GET /api/backup — Download a compressed database backup
+async fn export_backup(
+    AxumState(state): AxumState<WebAppState>,
+) -> Result<axum::response::Response, (StatusCode, Json<ErrorResponse>)> {
+    use axum::body::Body;
+    use axum::response::IntoResponse;
+
+    let temp_path = std::env::temp_dir().join(format!("dji-logbook-dl-{}.db.backup", uuid::Uuid::new_v4()));
+
+    state
+        .db
+        .export_backup(&temp_path)
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Backup failed: {}", e)))?;
+
+    let file_bytes = tokio::fs::read(&temp_path)
+        .await
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read backup file: {}", e)))?;
+
+    let _ = tokio::fs::remove_file(&temp_path).await;
+
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "application/octet-stream"),
+            (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"DJI_logbook.db.backup\""),
+        ],
+        Body::from(file_bytes),
+    ).into_response())
+}
+
+/// POST /api/backup/restore — Upload and restore a backup file
+async fn import_backup(
+    AxumState(state): AxumState<WebAppState>,
+    mut multipart: Multipart,
+) -> Result<Json<String>, (StatusCode, Json<ErrorResponse>)> {
+    let field = multipart
+        .next_field()
+        .await
+        .map_err(|e| err_response(StatusCode::BAD_REQUEST, format!("Multipart error: {}", e)))?
+        .ok_or_else(|| err_response(StatusCode::BAD_REQUEST, "No file uploaded"))?;
+
+    let data = field
+        .bytes()
+        .await
+        .map_err(|e| err_response(StatusCode::BAD_REQUEST, format!("Failed to read file: {}", e)))?;
+
+    let temp_path = std::env::temp_dir().join(format!("dji-logbook-restore-{}.db.backup", uuid::Uuid::new_v4()));
+    std::fs::write(&temp_path, &data)
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write temp file: {}", e)))?;
+
+    let msg = state
+        .db
+        .import_backup(&temp_path)
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Restore failed: {}", e)))?;
+
+    let _ = std::fs::remove_file(&temp_path);
+
+    Ok(Json(msg))
+}
+
 // ============================================================================
 // SERVER SETUP
 // ============================================================================
@@ -317,6 +376,8 @@ pub fn build_router(state: WebAppState) -> Router {
         .route("/api/set_api_key", post(set_api_key))
         .route("/api/app_data_dir", get(get_app_data_dir))
         .route("/api/app_log_dir", get(get_app_log_dir))
+        .route("/api/backup", get(export_backup))
+        .route("/api/backup/restore", post(import_backup))
         .layer(cors)
         .layer(DefaultBodyLimit::max(250 * 1024 * 1024)) // 250 MB
         .with_state(state)

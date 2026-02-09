@@ -1014,6 +1014,167 @@ impl Database {
 
         Ok(count > 0)
     }
+
+    /// Export the entire database to a compressed backup file.
+    ///
+    /// Uses DuckDB's Parquet COPY for each table, then packs them into a single
+    /// gzip-compressed tar archive.  The resulting `.db.backup` file is portable
+    /// and can be restored with `import_backup`.
+    pub fn export_backup(&self, dest_path: &std::path::Path) -> Result<(), DatabaseError> {
+        let start = std::time::Instant::now();
+        log::info!("Starting database backup to {:?}", dest_path);
+
+        // Create a temp directory for the Parquet exports
+        let temp_dir = std::env::temp_dir().join(format!("dji-logbook-backup-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir)?;
+
+        let conn = self.conn.lock().unwrap();
+
+        // Export each table to Parquet (fast, compressed, columnar)
+        let flights_path = temp_dir.join("flights.parquet");
+        let telemetry_path = temp_dir.join("telemetry.parquet");
+        let keychains_path = temp_dir.join("keychains.parquet");
+
+        conn.execute_batch(&format!(
+            "COPY flights    TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
+            flights_path.to_string_lossy()
+        ))?;
+        conn.execute_batch(&format!(
+            "COPY telemetry  TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
+            telemetry_path.to_string_lossy()
+        ))?;
+        conn.execute_batch(&format!(
+            "COPY keychains  TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
+            keychains_path.to_string_lossy()
+        ))?;
+
+        drop(conn); // release the lock while we tar
+
+        // Pack the Parquet files into a gzip-compressed tar archive
+        let dest_file = fs::File::create(dest_path)?;
+        let gz = flate2::write::GzEncoder::new(dest_file, flate2::Compression::fast());
+        let mut tar = tar::Builder::new(gz);
+
+        for name in &["flights.parquet", "telemetry.parquet", "keychains.parquet"] {
+            let file_path = temp_dir.join(name);
+            if file_path.exists() {
+                tar.append_path_with_name(&file_path, name)
+                    .map_err(|e| DatabaseError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            }
+        }
+
+        tar.into_inner()
+            .map_err(|e| DatabaseError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+            .finish()
+            .map_err(|e| DatabaseError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+
+        // Clean up temp dir
+        let _ = fs::remove_dir_all(&temp_dir);
+
+        log::info!(
+            "Database backup completed in {:.1}s → {:?}",
+            start.elapsed().as_secs_f64(),
+            dest_path
+        );
+        Ok(())
+    }
+
+    /// Import a backup file, restoring all flight data.
+    ///
+    /// Existing records are kept.  If a flight with the same ID already exists
+    /// it is overwritten (its telemetry is replaced as well).
+    pub fn import_backup(&self, src_path: &std::path::Path) -> Result<String, DatabaseError> {
+        let start = std::time::Instant::now();
+        log::info!("Starting database restore from {:?}", src_path);
+
+        // Extract the tar.gz archive to a temp directory
+        let temp_dir = std::env::temp_dir().join(format!("dji-logbook-restore-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir)?;
+
+        let file = fs::File::open(src_path)?;
+        let gz = flate2::read::GzDecoder::new(file);
+        let mut archive = tar::Archive::new(gz);
+        archive.unpack(&temp_dir)
+            .map_err(|e| DatabaseError::Io(std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to extract backup archive: {}", e))))?;
+
+        let flights_path = temp_dir.join("flights.parquet");
+        let telemetry_path = temp_dir.join("telemetry.parquet");
+        let keychains_path = temp_dir.join("keychains.parquet");
+
+        if !flights_path.exists() {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(DatabaseError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid backup file: missing flights.parquet",
+            )));
+        }
+
+        let conn = self.conn.lock().unwrap();
+
+        // --- Restore flights ---
+        // The flights table has multiple UNIQUE/PRIMARY KEY constraints (id + file_hash),
+        // so INSERT OR REPLACE is not supported.  Delete matching rows first, then insert.
+        conn.execute_batch(&format!(
+            r#"
+            DELETE FROM flights
+            WHERE id IN (SELECT id FROM read_parquet('{}'))
+               OR file_hash IN (SELECT file_hash FROM read_parquet('{}') WHERE file_hash IS NOT NULL);
+            INSERT INTO flights
+            SELECT * FROM read_parquet('{}');
+            "#,
+            flights_path.to_string_lossy(),
+            flights_path.to_string_lossy(),
+            flights_path.to_string_lossy()
+        ))?;
+
+        let flights_restored: i64 = conn.query_row(
+            &format!("SELECT COUNT(*) FROM read_parquet('{}')", flights_path.to_string_lossy()),
+            [],
+            |row| row.get(0),
+        )?;
+
+        // --- Restore telemetry ---
+        if telemetry_path.exists() {
+            // Get the set of flight IDs being restored so we can remove their
+            // existing telemetry first (to handle overwrites cleanly).
+            conn.execute_batch(&format!(
+                r#"
+                DELETE FROM telemetry
+                WHERE flight_id IN (
+                    SELECT DISTINCT flight_id FROM read_parquet('{}')
+                );
+                INSERT INTO telemetry
+                SELECT * FROM read_parquet('{}');
+                "#,
+                telemetry_path.to_string_lossy(),
+                telemetry_path.to_string_lossy()
+            ))?;
+        }
+
+        // --- Restore keychains ---
+        if keychains_path.exists() {
+            conn.execute_batch(&format!(
+                r#"
+                INSERT OR REPLACE INTO keychains
+                SELECT * FROM read_parquet('{}');
+                "#,
+                keychains_path.to_string_lossy()
+            ))?;
+        }
+
+        drop(conn);
+
+        // Clean up temp dir
+        let _ = fs::remove_dir_all(&temp_dir);
+
+        let elapsed = start.elapsed().as_secs_f64();
+        let msg = format!(
+            "Restored {} flights in {:.1}s",
+            flights_restored, elapsed
+        );
+        log::info!("{}", msg);
+        Ok(msg)
+    }
 }
 
 

@@ -48,6 +48,8 @@
       "axum": "0.7 (web feature, with multipart)",
       "tower_http": "0.5 (web feature, with cors + fs)",
       "env_logger": "0.11",
+      "flate2": "1 (gzip compression for backup archives)",
+      "tar": "0.4 (tar archive for backup/restore)",
       "tempfile": "3 (dev-dependency for tests)"
     }
   },
@@ -104,6 +106,7 @@
       "UI polish: Layout clipping fixes for Tauri on Linux (100vh -> 100% for title bar area).",
       "UI polish: Battery serial rename mapping (frontend-only, persisted to localStorage, shown everywhere).",
       "UI polish: App min-width 1600px with horizontal scrollbar when window is narrower.",
+      "Backup & Restore: Export full database (flights, telemetry, keychains) to a portable gzip-compressed tar archive of Parquet files. Import restores data with upsert semantics. Works in both Tauri (native save/open dialogs) and web (browser download/upload).",
       "Data safety: DB backup, corruption handling, telemetry rebuild when column order mismatches.",
       "Docker/Web deployment: Axum REST API mirroring all Tauri commands, Nginx reverse proxy, multi-stage Docker build.",
       "Dual-mode frontend: api.ts adapter uses invoke() for Tauri, fetch() for web. All @tauri-apps imports are dynamic."
@@ -204,6 +207,12 @@
       "vite_config": "Web mode: /api proxy, conditional optimizeDeps, es2022 build target.",
       "docker": "Multi-stage Dockerfile (rust:1.85 -> node:20 -> nginx:stable), docker-compose.yml (GHCR image), docker-compose-build.yml (local build), nginx.conf, entrypoint.sh.",
       "npm_scripts": "Added dev:web and build:web scripts with VITE_BACKEND=web."
+    },
+    "backup_restore": {
+      "description": "Full database backup and restore. Export creates a gzip-compressed tar archive containing Parquet files for flights, telemetry, and keychains tables. Import extracts and upserts data using delete-then-insert for flights (dual unique constraints: id + file_hash) and telemetry, INSERT OR REPLACE for keychains.",
+      "backend": "database.rs: export_backup() and import_backup() methods. main.rs: export_backup and import_backup Tauri commands. server.rs: GET /api/backup and POST /api/backup/restore endpoints.",
+      "frontend": "api.ts: backupDatabase() and restoreDatabase() with dual-mode support. SettingsModal.tsx: Backup/Restore buttons with loading overlay, spinner, and auto-dismiss messages.",
+      "dependencies": "Added flate2 (gzip) and tar (archive) crates to Cargo.toml."
     },
     "dead_code_cleanup": {
       "description": "Removed unused DatabaseError variants (AppDataDirNotFound, NotInitialized) and methods (keychains_dir, get_flight_track, store_keychain, get_keychain) to eliminate compiler warnings."
@@ -348,7 +357,9 @@
       "GET    /api/has_api_key        - Check API key configured",
       "POST   /api/set_api_key        - Set API key (JSON: api_key)",
       "GET    /api/app_data_dir       - Data directory path",
-      "GET    /api/app_log_dir        - Log directory path"
+      "GET    /api/app_log_dir        - Log directory path",
+      "GET    /api/backup             - Download compressed database backup (tar.gz of Parquet files)",
+      "POST   /api/backup/restore     - Upload and restore a backup file (multipart)"
     ]
   },
   "parser": {

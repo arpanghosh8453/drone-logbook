@@ -60,6 +60,10 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # SHA256 hashing for file deduplication
 sha2 = "0.10"
 
+# Backup archive (tar + gzip)
+flate2 = "1"
+tar = "0.4"
+
 # File utilities
 dirs = "5"
 

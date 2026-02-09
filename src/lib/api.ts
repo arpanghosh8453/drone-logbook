@@ -231,3 +231,70 @@ export function downloadBlob(filename: string, blob: Blob) {
 export function isWebMode(): boolean {
   return isWeb;
 }
+
+// ============================================================================
+// Database backup & restore
+// ============================================================================
+
+/**
+ * Export the database as a compressed backup file.
+ * - Tauri: prompts user with a save dialog, backend writes the file directly.
+ * - Web: downloads the backup file via the browser.
+ */
+export async function backupDatabase(): Promise<void> {
+  if (isWeb) {
+    // Web mode: download via fetch
+    const response = await fetch(`${API_BASE}/backup`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body);
+    }
+    const blob = await response.blob();
+    downloadBlob('DJI_logbook.db.backup', blob);
+    return;
+  }
+
+  // Tauri mode: use native save dialog
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  const destPath = await save({
+    defaultPath: 'DJI_logbook.db.backup',
+    filters: [{ name: 'DJI Logbook Backup', extensions: ['backup'] }],
+  });
+  if (!destPath) return; // user cancelled
+  const invoke = await getTauriInvoke();
+  await invoke('export_backup', { destPath });
+}
+
+/**
+ * Import a backup file to restore flight data.
+ * - Tauri: prompts user with an open dialog, backend reads the file directly.
+ * - Web: uploads the file via multipart/form-data.
+ * Returns a status message string.
+ */
+export async function restoreDatabase(file?: File): Promise<string> {
+  if (isWeb) {
+    if (!file) throw new Error('No file provided');
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const response = await fetch(`${API_BASE}/backup/restore`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body);
+    }
+    return response.json();
+  }
+
+  // Tauri mode: use native open dialog
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const srcPath = await open({
+    multiple: false,
+    filters: [{ name: 'DJI Logbook Backup', extensions: ['backup'] }],
+  });
+  if (!srcPath) return ''; // user cancelled
+  const filePath = typeof srcPath === 'string' ? srcPath : (srcPath as { path: string }).path;
+  const invoke = await getTauriInvoke();
+  return invoke('import_backup', { srcPath: filePath }) as Promise<string>;
+}
