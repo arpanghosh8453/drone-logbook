@@ -795,7 +795,7 @@ ${points}
                   className="fixed inset-0 z-40" 
                   onClick={() => setIsExportDropdownOpen(false)} 
                 />
-                <div className="absolute left-0 top-full mt-2 w-full bg-dji-surface border border-gray-700 rounded-lg shadow-xl z-50">
+                <div className="themed-select-dropdown absolute left-0 top-full mt-2 w-full border border-gray-700 rounded-lg shadow-xl z-50">
                   <div className="p-2">
                     {[
                       { id: 'csv', label: 'CSV', ext: 'csv' },
@@ -809,7 +809,7 @@ ${points}
                           setIsExportDropdownOpen(false);
                           handleBulkExport(opt.id, opt.ext);
                         }}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700/40 rounded transition-colors"
+                        className="themed-select-option w-full text-left px-3 py-2 text-sm rounded transition-colors"
                       >
                         {opt.label}
                       </button>
@@ -899,7 +899,7 @@ ${points}
                   className="fixed inset-0 z-40"
                   onClick={() => setIsSortOpen(false)}
                 />
-                <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-gray-700 bg-dji-surface p-1 shadow-xl">
+                <div className="themed-select-dropdown absolute right-0 z-50 mt-2 w-56 rounded-xl border border-gray-700 p-1 shadow-xl">
                   {sortOptions.map((option) => (
                     <button
                       key={option.value}
@@ -908,10 +908,10 @@ ${points}
                         setSortOption(option.value as typeof sortOption);
                         setIsSortOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${
+                      className={`themed-select-option w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${
                         sortOption === option.value
-                          ? 'bg-dji-primary/20 text-white'
-                          : 'text-gray-300 hover:bg-gray-700/40 hover:text-white'
+                          ? 'bg-dji-primary/20 font-medium'
+                          : ''
                       }`}
                     >
                       {option.label}

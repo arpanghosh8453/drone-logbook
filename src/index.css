@@ -231,7 +231,7 @@ body.theme-light ::-webkit-scrollbar-thumb:hover {
 .themed-select-trigger:focus {
   outline: none;
   border-color: rgb(var(--dji-primary));
-  box-shadow: 0 0 0 2px rgba(var(--dji-primary), 0.3);
+  box-shadow: 0 0 0 2px rgb(var(--dji-primary) / 0.3);
 }
 
 .themed-select-dropdown {
@@ -241,11 +241,18 @@ body.theme-light ::-webkit-scrollbar-thumb:hover {
 
 .themed-select-option {
   color: #e2e8f0;
+  cursor: pointer;
+  border-radius: 0.375rem;
 }
 
-.themed-select-option:hover,
+.themed-select-option:hover {
+  background-color: rgb(var(--dji-primary) / 0.35);
+  color: #ffffff;
+}
+
 .themed-select-option[data-active="true"] {
-  background-color: rgba(var(--dji-primary), 0.2);
+  background-color: rgb(var(--dji-primary) / 0.25);
+  color: #ffffff;
 }
 
 /* Light theme overrides */
@@ -264,9 +271,14 @@ body.theme-light .themed-select-option {
   color: #1e293b;
 }
 
-body.theme-light .themed-select-option:hover,
+body.theme-light .themed-select-option:hover {
+  background-color: rgb(var(--dji-primary) / 0.2);
+  color: #0f172a;
+}
+
 body.theme-light .themed-select-option[data-active="true"] {
-  background-color: rgba(var(--dji-primary), 0.1);
+  background-color: rgb(var(--dji-primary) / 0.15);
+  color: #0f172a;
 }
 
 body.theme-light .input {
@@ -323,9 +335,9 @@ body.theme-light .echarts-tooltip .tooltip-time-tag {
 /* Day picker styling */
 .rdp-theme {
   --rdp-accent-color: rgb(var(--dji-primary));
-  --rdp-background-color: rgba(var(--dji-primary), 0.15);
-  --rdp-outline: 2px solid rgba(var(--dji-primary), 0.5);
-  --rdp-outline-selected: 2px solid rgba(var(--dji-primary), 0.6);
+  --rdp-background-color: rgb(var(--dji-primary) / 0.15);
+  --rdp-outline: 2px solid rgb(var(--dji-primary) / 0.5);
+  --rdp-outline-selected: 2px solid rgb(var(--dji-primary) / 0.6);
   --rdp-selected-color: #ffffff;
   --rdp-day_button-border-radius: 8px;
   --rdp-cell-size: 36px;
@@ -341,11 +353,11 @@ body.theme-light .rdp-theme .rdp {
 }
 
 .rdp-theme .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
-  background-color: rgba(var(--dji-primary), 0.15);
+  background-color: rgb(var(--dji-primary) / 0.15);
 }
 
 .rdp-theme .rdp-day_range_middle {
-  background-color: rgba(var(--dji-primary), 0.12);
+  background-color: rgb(var(--dji-primary) / 0.12);
   color: #e2e8f0;
 }
 

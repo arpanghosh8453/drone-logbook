@@ -6,6 +6,8 @@
 import type { FlightDataResponse } from '@/types';
 import { isWebMode, downloadFile } from '@/lib/api';
 import { useMemo, useState } from 'react';
+import { WeatherModal } from './WeatherModal';
+import weatherIcon from '@/assets/weather-icon.svg';
 import {
   formatDuration,
   formatDistance,
@@ -24,6 +26,7 @@ export function FlightStats({ data }: FlightStatsProps) {
   const { unitSystem, getBatteryDisplayName } = useFlightStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isWeatherOpen, setIsWeatherOpen] = useState(false);
 
   // Calculate min battery from telemetry
   const minBattery = telemetry.battery.reduce<number | null>((min, val) => {
@@ -281,7 +284,7 @@ ${points}
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] gap-2">
+      <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_auto_auto] gap-2">
         <StatCard
           label="Duration"
           value={formatDuration(flight.durationSecs)}
@@ -308,6 +311,16 @@ ${points}
           icon={<BatteryIcon percent={minBattery} />}
           alert={minBattery !== null && minBattery < 20}
         />
+        {/* Weather button */}
+        <button
+          type="button"
+          onClick={() => setIsWeatherOpen(true)}
+          disabled={!flight.homeLat || !flight.homeLon || !flight.startTime}
+          title="Flight weather"
+          className="h-full min-h-[52px] w-[62px] flex items-center justify-center rounded-lg border-2 border-sky-500/70 text-sky-400 transition-all duration-200 hover:bg-sky-500 hover:text-white hover:shadow-md disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-sky-400"
+        >
+          <WeatherBtnIcon />
+        </button>
         <div className="relative justify-self-end">
           <button
             type="button"
@@ -324,7 +337,7 @@ ${points}
                 className="fixed inset-0 z-40"
                 onClick={() => setIsExportOpen(false)}
               />
-              <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-xl border border-gray-700 bg-dji-surface p-1 shadow-xl">
+              <div className="themed-select-dropdown absolute right-0 top-full z-50 mt-2 w-40 rounded-xl border border-gray-700 p-1 shadow-xl">
                 {exportOptions.map((option) => (
                   <button
                     key={option.id}
@@ -333,7 +346,7 @@ ${points}
                       setIsExportOpen(false);
                       handleExport(option.id, option.extension);
                     }}
-                    className="w-full text-left px-3 py-2 text-xs rounded-lg text-gray-300 hover:bg-gray-700/40 hover:text-white transition-colors"
+                    className="themed-select-option w-full text-left px-3 py-2 text-xs rounded-lg transition-colors"
                   >
                     {option.label}
                   </button>
@@ -343,6 +356,18 @@ ${points}
           )}
         </div>
       </div>
+
+      {/* Weather Modal */}
+      {flight.homeLat != null && flight.homeLon != null && flight.startTime && (
+        <WeatherModal
+          isOpen={isWeatherOpen}
+          onClose={() => setIsWeatherOpen(false)}
+          lat={flight.homeLat}
+          lon={flight.homeLon}
+          startTime={flight.startTime}
+          unitSystem={unitSystem}
+        />
+      )}
     </div>
   );
 }
@@ -501,6 +526,10 @@ function ChevronIcon() {
       />
     </svg>
   );
+}
+
+function WeatherBtnIcon() {
+  return <img src={weatherIcon} alt="Weather" className="w-[25px] h-[25px]" />;
 }
 
 function computeDistanceToHomeSeries(telemetry: FlightDataResponse['telemetry']) {
