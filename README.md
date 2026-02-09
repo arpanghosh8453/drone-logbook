@@ -17,19 +17,34 @@
 
 
 <p align="center">
-    <img src="screenshots/overview_panel.png" alt="Overview dashboard" width="900" />
+    <img src="screenshots/interface_dark.png" alt="Interface (dark)" width="900" />
 </p>
 <p align="center">
-    <img src="screenshots/Flights_panel_1.png" alt="Flights panel" width="900" />
+    <img src="screenshots/interface_light.png" alt="Interface (light)" width="900" />
 </p>
 <p align="center">
-    <img src="screenshots/Settings_panel.png" alt="Settings panel" width="900" />
+    <img src="screenshots/individual_stats.png" alt="Individual stats" width="900" />
 </p>
 <p align="center">
-    <img src="screenshots/overview_panel_light.png" alt="Overview dashboard (light)" width="900" />
+    <img src="screenshots/individual_stats_light.png" alt="Individual stats (light)" width="900" />
 </p>
 <p align="center">
-    <img src="screenshots/Flights_panel_light_1.png" alt="Flights panel (light)" width="900" />
+    <img src="screenshots/overall_stats_dark.png" alt="Overall stats (dark)" width="900" />
+</p>
+<p align="center">
+    <img src="screenshots/overall_stats.png" alt="Overall stats" width="900" />
+<p align="center">
+    <img src="screenshots/telemetry_1.png" alt="Telemetry charts" width="900" />
+</p>
+<p align="center">
+    <img src="screenshots/telemetry_2.png" alt="Telemetry charts 2" width="900" />
+</p>
+</p>
+<p align="center">
+    <img src="screenshots/flight_map.png" alt="Flight map" width="900" />
+</p>
+<p align="center">
+    <img src="screenshots/flight_map_2.png" alt="Flight map 2" width="900" />
 </p>
 
 ## Features
