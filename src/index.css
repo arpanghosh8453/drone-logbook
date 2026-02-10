@@ -41,6 +41,11 @@ body.theme-light .text-white {
   color: #0f172a !important;
 }
 
+/* Keep button text white on colored backgrounds in light mode */
+body.theme-light .btn-primary {
+  color: #ffffff !important;
+}
+
 body.theme-light .border-gray-700 {
   border-color: #e2e8f0 !important;
 }

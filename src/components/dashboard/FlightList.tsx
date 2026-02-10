@@ -205,39 +205,50 @@ export function FlightList({ onSelectFlight }: { onSelectFlight?: (flightId: num
       // When no filters are active, show all
       if (!hasAnyFilter) return true;
 
-      const matchesFilter = (() => {
-        if (start || end) {
-          if (!flight.startTime) return false;
+      // Each filter check returns true if the flight matches that filter.
+      // Normal mode: AND all filters (must match ALL).
+      // Inverted mode: negate each individual filter, then AND (must fail ALL).
+      //   i.e. NOT A AND NOT B AND NOT C — exclude flights that match any active filter.
+
+      if (start || end) {
+        let matchesDate = true;
+        if (!flight.startTime) {
+          matchesDate = false;
+        } else {
           const flightDate = new Date(flight.startTime);
-          if (start && flightDate < start) return false;
-          if (end && flightDate > end) return false;
+          if (start && flightDate < start) matchesDate = false;
+          if (end && flightDate > end) matchesDate = false;
         }
+        if (isFilterInverted ? matchesDate : !matchesDate) return false;
+      }
 
-        if (selectedDrone) {
-          const key = `${flight.droneModel ?? ''}||${flight.droneSerial ?? ''}`;
-          if (key !== selectedDrone) return false;
-        }
+      if (selectedDrone) {
+        const key = `${flight.droneModel ?? ''}||${flight.droneSerial ?? ''}`;
+        const matchesDrone = key === selectedDrone;
+        if (isFilterInverted ? matchesDrone : !matchesDrone) return false;
+      }
 
-        if (selectedBattery) {
-          if (flight.batterySerial !== selectedBattery) return false;
-        }
+      if (selectedBattery) {
+        const matchesBattery = flight.batterySerial === selectedBattery;
+        if (isFilterInverted ? matchesBattery : !matchesBattery) return false;
+      }
 
-        if (durationFilterMin !== null || durationFilterMax !== null) {
-          const durationMins = (flight.durationSecs ?? 0) / 60;
-          if (durationFilterMin !== null && durationMins < durationFilterMin) return false;
-          if (durationFilterMax !== null && durationMins > durationFilterMax) return false;
-        }
+      if (durationFilterMin !== null || durationFilterMax !== null) {
+        const durationMins = (flight.durationSecs ?? 0) / 60;
+        let matchesDuration = true;
+        if (durationFilterMin !== null && durationMins < durationFilterMin) matchesDuration = false;
+        if (durationFilterMax !== null && durationMins > durationFilterMax) matchesDuration = false;
+        if (isFilterInverted ? matchesDuration : !matchesDuration) return false;
+      }
 
-        // Tag filter: flight must have ALL selected tags
-        if (selectedTags.length > 0) {
-          const flightTagNames = (flight.tags ?? []).map(t => typeof t === 'string' ? t : t.tag);
-          if (!selectedTags.every((tag) => flightTagNames.includes(tag))) return false;
-        }
+      // Tag filter: normal = flight must have ALL selected tags; inverted = must have NONE
+      if (selectedTags.length > 0) {
+        const flightTagNames = (flight.tags ?? []).map(t => typeof t === 'string' ? t : t.tag);
+        const matchesTags = selectedTags.every((tag) => flightTagNames.includes(tag));
+        if (isFilterInverted ? matchesTags : !matchesTags) return false;
+      }
 
-        return true;
-      })();
-
-      return isFilterInverted ? !matchesFilter : matchesFilter;
+      return true;
     });
   }, [dateRange, flights, selectedBattery, selectedDrone, durationFilterMin, durationFilterMax, selectedTags, isFilterInverted]);
 
@@ -950,7 +961,7 @@ ${points}
                         onChange={(e) => setTagSearch(e.target.value)}
                         placeholder="Search tags…"
                         autoFocus
-                        className="w-full bg-gray-800 text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-dji-primary focus:outline-none placeholder-gray-500"
+                        className="w-full bg-dji-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-dji-primary focus:outline-none placeholder-gray-500"
                       />
                     </div>
                     <div className="overflow-auto flex-1">
