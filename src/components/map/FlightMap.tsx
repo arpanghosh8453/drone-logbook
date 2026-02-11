@@ -194,93 +194,99 @@ const COLOR_BY_OPTIONS: { value: ColorByMode; label: string }[] = [
 /* ─── Directional arrow stick widget ────────────────────────────── */
 
 interface StickArrowsProps {
-  label: string;
   up: number;      // 0-100
   down: number;    // 0-100
   left: number;    // 0-100
   right: number;   // 0-100
-  upLabel: string;
-  downLabel: string;
-  leftLabel: string;
-  rightLabel: string;
 }
 
-/** Renders a cross of 4 directional arrows that progressively fill based on input % */
-function StickArrows({ label, up, down, left, right, upLabel, downLabel, leftLabel, rightLabel }: StickArrowsProps) {
+/**
+ * Renders a compact cross of 4 directional bar indicators.
+ * Each bar progressively fills from the center outward to show stick force.
+ */
+function StickArrows({ up, down, left, right }: StickArrowsProps) {
   const clamp = (v: number) => Math.min(100, Math.max(0, v));
   const pct = { up: clamp(up), down: clamp(down), left: clamp(left), right: clamp(right) };
 
-  // color ramp: dim → bright cyan as intensity increases
-  const fill = (val: number) => {
-    if (val < 2) return 'rgba(148, 163, 184, 0.18)'; // near-idle  slate-400/18
+  const BAR_LEN = 21; // max bar length in px
+  const BAR_W = 4;    // bar thickness
+
+  // Color ramp: uses CSS custom properties so light mode can override
+  const barColor = (val: number) => {
+    if (val < 2) return 'transparent';
     const t = val / 100;
-    // interpolate from gray-500 to sky-400
-    const r = Math.round(107 + (56 - 107) * t);   // 107 → 56
-    const g = Math.round(114 + (189 - 114) * t);   // 114 → 189
-    const b = Math.round(128 + (248 - 128) * t);   // 128 → 248
-    return `rgba(${r},${g},${b},${0.35 + 0.65 * t})`;
+    return `color-mix(in srgb, var(--stick-bar-active) ${Math.round(70 + 30 * t)}%, transparent)`;
   };
 
-  // Arrow SVG: points upward by default, rotated per direction
-  //  The arrow has a "fill zone" that grows from the base toward the tip.
-  const ArrowIcon = ({ value, rotation, arrowLabel }: { value: number; rotation: number; arrowLabel: string }) => {
-    const h = 28; // arrow total height in viewBox
-    const fillH = (clamp(value) / 100) * h;
-    const id = `arr-${label}-${rotation}`;
+  const barShadow = (val: number) => {
+    if (val < 5) return 'none';
+    const t = val / 100;
+    return `0 0 ${3 + 6 * t}px var(--stick-bar-glow)`;
+  };
+
+  // Vertical bar (up or down from center) with a visible track behind it
+  const VBar = ({ value, direction }: { value: number; direction: 'up' | 'down' }) => {
+    const len = (clamp(value) / 100) * BAR_LEN;
     return (
-      <div className="flex flex-col items-center" style={{ transform: `rotate(${rotation}deg)` }}>
-        <svg width="18" height="32" viewBox="0 0 24 36" className="block">
-          <defs>
-            <clipPath id={id}>
-              {/* Upward arrow shape */}
-              <polygon points="12,2 22,18 17,18 17,34 7,34 7,18 2,18" />
-            </clipPath>
-          </defs>
-          {/* Unfilled outline */}
-          <polygon
-            points="12,2 22,18 17,18 17,34 7,34 7,18 2,18"
-            fill="none"
-            stroke="rgba(148,163,184,0.25)"
-            strokeWidth="1"
-            strokeLinejoin="round"
-          />
-          {/* Progressive fill from base (bottom) upward */}
-          <rect
-            x="0"
-            y={36 - (fillH / h) * 34}
-            width="24"
-            height={(fillH / h) * 34}
-            fill={fill(value)}
-            clipPath={`url(#${id})`}
-          />
-        </svg>
-        {/* Tiny label — counter-rotate so text stays upright */}
-        <span
-          className="text-[8px] leading-none text-gray-500 mt-[-2px] select-none"
-          style={{ transform: `rotate(${-rotation}deg)` }}
-        >
-          {arrowLabel}
-        </span>
+      <div className="flex items-center justify-center" style={{ width: BAR_W, height: BAR_LEN, position: 'relative' }}>
+        {/* Track / rail — always visible */}
+        <div className="stick-bar-track" style={{ position: 'absolute', width: BAR_W, height: BAR_LEN, borderRadius: 2 }} />
+        {/* Active fill */}
+        <div
+          style={{
+            position: 'relative',
+            width: BAR_W,
+            height: len,
+            borderRadius: 2,
+            background: barColor(value),
+            boxShadow: barShadow(value),
+            transition: 'height 60ms ease-out, background 60ms ease-out',
+            [direction === 'up' ? 'marginTop' : 'marginBottom']: 'auto',
+          }}
+        />
+      </div>
+    );
+  };
+
+  // Horizontal bar (left or right from center) with a visible track behind it
+  const HBar = ({ value, direction }: { value: number; direction: 'left' | 'right' }) => {
+    const len = (clamp(value) / 100) * BAR_LEN;
+    return (
+      <div className="flex items-center" style={{ width: BAR_LEN, height: BAR_W, justifyContent: direction === 'left' ? 'flex-end' : 'flex-start', position: 'relative' }}>
+        {/* Track / rail — always visible */}
+        <div className="stick-bar-track" style={{ position: 'absolute', width: BAR_LEN, height: BAR_W, borderRadius: 2 }} />
+        {/* Active fill */}
+        <div
+          style={{
+            position: 'relative',
+            width: len,
+            height: BAR_W,
+            borderRadius: 2,
+            background: barColor(value),
+            boxShadow: barShadow(value),
+            transition: 'width 60ms ease-out, background 60ms ease-out',
+          }}
+        />
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[9px] font-medium text-gray-500 uppercase tracking-wider mb-0.5">{label}</span>
-      <div className="grid grid-cols-3 grid-rows-3 gap-0 place-items-center" style={{ width: 64, height: 70 }}>
+    <div className="flex items-center justify-center">
+      <div className="grid grid-cols-3 grid-rows-3 place-items-center" style={{ width: 56, height: 60 }}>
         {/* row 1 */}
-        <div />{/* top-left empty */}
-        <ArrowIcon value={pct.up} rotation={0} arrowLabel={upLabel} />
-        <div />{/* top-right empty */}
+        <div />
+        <VBar value={pct.up} direction="up" />
+        <div />
         {/* row 2 */}
-        <ArrowIcon value={pct.left} rotation={-90} arrowLabel={leftLabel} />
-        <div />{/* center */}
-        <ArrowIcon value={pct.right} rotation={90} arrowLabel={rightLabel} />
+        <HBar value={pct.left} direction="left" />
+        {/* center dot */}
+        <div className="w-[5px] h-[5px] rounded-full stick-center-dot" />
+        <HBar value={pct.right} direction="right" />
         {/* row 3 */}
-        <div />{/* bottom-left empty */}
-        <ArrowIcon value={pct.down} rotation={180} arrowLabel={downLabel} />
-        <div />{/* bottom-right empty */}
+        <div />
+        <VBar value={pct.down} direction="down" />
+        <div />
       </div>
     </div>
   );
@@ -1026,47 +1032,34 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
         </div>
       )}
 
-      {/* RC Stick Overlay — above the playbar */}
-      {replayActive && showTooltip && replayTelemetry && (replayTelemetry.rcAileron !== null || replayTelemetry.rcThrottle !== null) && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-          <div className="map-overlay bg-dji-dark/70 backdrop-blur-md border border-gray-700/60 rounded-xl px-3 py-2.5 shadow-xl">
-            <div className="flex items-center gap-4">
-              {/* Left Stick — Throttle (up/down) + Rudder (left/right = yaw) */}
-              <StickArrows
-                label="L"
-                up={Math.max(0, replayTelemetry.rcThrottle ?? 0)}
-                down={Math.max(0, -(replayTelemetry.rcThrottle ?? 0))}
-                left={Math.max(0, -(replayTelemetry.rcRudder ?? 0))}
-                right={Math.max(0, replayTelemetry.rcRudder ?? 0)}
-                upLabel="Up"
-                downLabel="Down"
-                leftLabel="CCW"
-                rightLabel="CW"
-              />
-              {/* Divider */}
-              <div className="w-px h-14 bg-gray-700/50" />
-              {/* Right Stick — Elevator (forward/back) + Aileron (left/right) */}
-              <StickArrows
-                label="R"
-                up={Math.max(0, replayTelemetry.rcElevator ?? 0)}
-                down={Math.max(0, -(replayTelemetry.rcElevator ?? 0))}
-                left={Math.max(0, -(replayTelemetry.rcAileron ?? 0))}
-                right={Math.max(0, replayTelemetry.rcAileron ?? 0)}
-                upLabel="Fwd"
-                downLabel="Back"
-                leftLabel="Left"
-                rightLabel="Right"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Flight Replay Controls */}
+      {/* Replay bottom controls — shared width wrapper */}
       {showAircraft && track.length > 1 ? (
-        <div
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 bg-dji-dark/90 backdrop-blur-sm border border-gray-700 rounded-xl px-3 py-2 shadow-xl flex items-center gap-3 min-w-[280px] max-w-[460px] w-[90%] sm:w-auto pointer-events-auto"
-        >
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex flex-col items-stretch gap-1.5 min-w-[280px] max-w-[460px] w-[90%] sm:w-auto">
+
+          {/* RC Stick Overlay — above the playbar */}
+          {replayActive && showTooltip && replayTelemetry && (replayTelemetry.rcAileron !== null || replayTelemetry.rcThrottle !== null) && (
+            <div className="rc-stick-overlay flex items-center justify-between rounded-xl px-5 py-3 pointer-events-none">
+                {/* Left Stick — Throttle + Rudder */}
+                <StickArrows
+                  up={Math.max(0, replayTelemetry.rcThrottle ?? 0)}
+                  down={Math.max(0, -(replayTelemetry.rcThrottle ?? 0))}
+                  left={Math.max(0, -(replayTelemetry.rcRudder ?? 0))}
+                  right={Math.max(0, replayTelemetry.rcRudder ?? 0)}
+                />
+                {/* Right Stick — Elevator + Aileron */}
+                <StickArrows
+                  up={Math.max(0, replayTelemetry.rcElevator ?? 0)}
+                  down={Math.max(0, -(replayTelemetry.rcElevator ?? 0))}
+                  left={Math.max(0, -(replayTelemetry.rcAileron ?? 0))}
+                  right={Math.max(0, replayTelemetry.rcAileron ?? 0)}
+                />
+            </div>
+          )}
+
+          {/* Flight Replay Controls — Playbar */}
+          <div
+            className="bg-dji-dark/90 backdrop-blur-sm border border-gray-700 rounded-xl px-3 py-2 shadow-xl flex items-center gap-3 pointer-events-auto"
+          >
           {/* Play / Pause */}
           <button
             type="button"
@@ -1123,6 +1116,7 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
           >
             {replaySpeed === 0.5 ? '½×' : `${replaySpeed}×`}
           </button>
+          </div>
         </div>
       ) : null}
     </div>

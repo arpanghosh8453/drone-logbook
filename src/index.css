@@ -9,6 +9,15 @@
   --dji-dark: 15 15 26;
   --dji-surface: 22 33 62;
   --dji-muted: 74 78 105;
+
+  /* RC stick overlay — dark mode defaults */
+  --stick-idle: rgba(148, 163, 184, 0.35);
+  --stick-track: rgba(148, 163, 184, 0.18);
+  --stick-center: rgba(180, 190, 200, 0.5);
+  --stick-bg: rgba(15, 15, 26, 0.38);
+  --stick-border: rgba(100, 116, 139, 0.25);
+  --stick-bar-active: rgba(56, 200, 255, 0.95);
+  --stick-bar-glow: rgba(56, 200, 255, 0.35);
 }
 
 body.theme-light {
@@ -98,6 +107,31 @@ body.theme-light .map-tooltip .border-gray-700\/60 {
 body.theme-light .map-overlay {
   background-color: rgba(255, 255, 255, 0.85) !important;
   border-color: #e2e8f0 !important;
+}
+
+/* RC stick overlay — base */
+.rc-stick-overlay {
+  background: var(--stick-bg);
+  border: 1px solid var(--stick-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.stick-center-dot {
+  background: var(--stick-center);
+}
+.stick-bar-track {
+  background: var(--stick-track);
+}
+
+/* Light mode: RC stick overlay */
+body.theme-light {
+  --stick-idle: rgba(100, 116, 139, 0.5);
+  --stick-track: rgba(100, 116, 139, 0.2);
+  --stick-center: rgba(71, 85, 105, 0.55);
+  --stick-bg: rgba(255, 255, 255, 0.42);
+  --stick-border: rgba(203, 213, 225, 0.5);
+  --stick-bar-active: rgba(30, 41, 59, 0.9);
+  --stick-bar-glow: rgba(30, 41, 59, 0.15);
 }
 
 /* Light mode: flight tags */

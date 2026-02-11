@@ -99,7 +99,7 @@
       "Map: deck.gl 3D path overlay; map toggles persist in session.",
       "Map: Catmull-Rom spline smoothing, color-by modes (progress/height/speed/distance), hover tooltip.",
       "Map: Flight replay with play/pause, seek slider, speed selector (0.5x-16x), and 3D-aware aircraft marker.",
-      "Map: Replay telemetry overlay (top-right) showing live-interpolated height, speed, distance, battery, satellites, attitude, and coordinates synced to playback position. Hover tooltip paused during replay.",
+      "Map: Replay telemetry overlay (top-right) showing live-interpolated height, speed, distance, battery, satellites, attitude, and coordinates synced to playback position. RC stick input overlay above playbar with progressive-fill bar indicators for throttle, rudder, elevator, and aileron — theme-aware with visible track rails. Hover tooltip paused during replay.",
       "Map: Aircraft toggle to show/hide replay controls and marker. Satellite maxzoom 18, terrain DEM maxzoom 12.",
       "Export: CSV/JSON/GPX/KML downloads from flight stats.",
       "Logging: comprehensive debug logging via tauri-plugin-log (desktop) or env_logger (web).",
@@ -266,6 +266,13 @@
       "filter_inversion_fix": "FlightList.tsx: Changed from NOT(A AND B) to (NOT A AND NOT B) — each filter individually inverted for correct AND semantics.",
       "app_version": "SettingsModal.tsx: fetchAppVersion() tries Tauri getVersion() then falls back to __APP_VERSION__. vite.config.ts: reads version from tauri.conf.json with existsSync fallback to package.json for Docker.",
       "docker_build_fix": "vite.config.ts: Uses existsSync check for src-tauri/tauri.conf.json, falls back to package.json version. Prevents build failure in Docker frontend stage where src-tauri is absent."
+    },
+    "rc_stick_overlay_redesign": {
+      "description": "Redesigned the RC stick input overlay on the flight map replay: removed all text labels, switched from filled arrow shapes to progressive-fill bar indicators with visible track rails, theme-aware colors via CSS custom properties.",
+      "component": "FlightMap.tsx: StickArrows component uses VBar/HBar sub-components with background track (.stick-bar-track) and foreground fill that grows from center outward proportional to stick input (0-100%). Center dot retained. No text labels (removed L/R headers, Up/Down/Fwd/Back/CCW/CW labels).",
+      "layout": "RC stick overlay and playbar wrapped in a shared flex-col container (items-stretch) so both share the exact same width. Left and right stick controls placed on opposite ends via justify-between. Gap (gap-1.5) separates overlay from playbar.",
+      "theming": "index.css: CSS custom properties for bar fill colors — dark mode uses vivid cyan (--stick-bar-active: rgba(56,200,255,0.95)), light mode uses dark slate (--stick-bar-active: rgba(30,41,59,0.9)) for visibility on white backgrounds. Track rails always visible via --stick-track. Semi-transparent backdrop-blur background (--stick-bg: 38% dark / 42% light opacity).",
+      "sizing": "Grid: 56x60px per stick. Bar length: 21px max. Bar thickness: 4px. Overlay padding: px-5 py-1."
     },
     "v1_5_0_sidebar_and_telemetry": {
       "description": "Sidebar UX polish, unified sidebar filters for Overview, weather modal fix, map replay telemetry overlay.",
@@ -482,7 +489,7 @@
     "filters": "Flight list uses date range popover (react-day-picker), drone and battery selects (searchable via type-to-filter), dual-thumb duration slider, and multi-select tag filter. Filter inversion button (circular arrows) individually negates each active filter (AND logic: NOT A AND NOT B). Collapsible filter/import panels persisted to localStorage. Overview shares sidebar filters via store.",
     "flight_list": "Simple compact list with always-visible rename (pencil icon, sky-400) and delete (trash icon, red-400) icons. Subtitle shows date . duration . distance.",
     "charts": "ECharts with synced zoom; global drag-to-zoom toggle + reset zoom buttons; tooltip header uses pill capsules. Theme-aware base config. Hidden per-chart toolbox enables selection highlight for drag-to-zoom.",
-    "map": "MapLibre terrain with deck.gl overlay. Spline-smoothed color-by gradient path, shadow layer, start/end/home markers, hover tooltip. Replay telemetry overlay with live-interpolated data during playback.",
+    "map": "MapLibre terrain with deck.gl overlay. Spline-smoothed color-by gradient path, shadow layer, start/end/home markers, hover tooltip. Replay telemetry overlay with live-interpolated data during playback. RC stick input overlay with progressive-fill bars and theme-aware styling (cyan on dark, dark slate on light).",
     "loading": "Spinner uses border-sky-400 for both-mode visibility."
   },
   "known_issues": [
