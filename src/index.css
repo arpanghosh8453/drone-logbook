@@ -233,6 +233,61 @@ body.overlay-active {
   overflow: hidden !important;
 }
 
+/* API Key type badge styles */
+.api-key-badge {
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.api-key-badge-none {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.api-key-badge-default {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.api-key-badge-personal {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Light mode API key badges */
+body.theme-light .api-key-badge-none {
+  background-color: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+body.theme-light .api-key-badge-default {
+  background-color: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.35);
+}
+
+body.theme-light .api-key-badge-personal {
+  background-color: rgba(5, 150, 105, 0.12);
+  color: #059669;
+  border-color: rgba(5, 150, 105, 0.35);
+}
+
+/* Personal badge hover → Remove (red) */
+.api-key-badge-personal:hover {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+body.theme-light .api-key-badge-personal:hover {
+  background-color: rgba(220, 38, 38, 0.12) !important;
+  color: #dc2626 !important;
+  border-color: rgba(220, 38, 38, 0.35) !important;
+}
+
 /* Supporter badge */
 .supporter-badge {
   animation: badgeFadeIn 0.6s ease-out;

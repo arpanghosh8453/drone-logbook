@@ -148,6 +148,62 @@ impl DjiApi {
         self.get_api_key().is_some()
     }
 
+    /// Get the type/source of the configured API key.
+    /// Returns "personal" if the user set one (env, config, or .env),
+    /// "default" if only the built-in key is in use, or "none".
+    pub fn get_api_key_type(&self) -> String {
+        // Check user-provided sources (env var, config.json, .env file)
+        let user_key = {
+            if let Ok(key) = std::env::var("DJI_API_KEY") {
+                if !key.is_empty() && key != "your_api_key_here" {
+                    Some(key)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        .or_else(|| {
+            if let Some(ref app_dir) = self.app_data_dir {
+                let config_path = app_dir.join("config.json");
+                if config_path.exists() {
+                    if let Ok(content) = fs::read_to_string(&config_path) {
+                        if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
+                            if let Some(key) = config.dji_api_key {
+                                if !key.is_empty() {
+                                    return Some(key);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        })
+        .or_else(|| {
+            if let Ok(content) = fs::read_to_string(".env") {
+                for line in content.lines() {
+                    if let Some(key_value) = line.strip_prefix("DJI_API_KEY=") {
+                        let key = key_value.trim().trim_matches('"').trim_matches('\'');
+                        if !key.is_empty() && key != "your_api_key_here" {
+                            return Some(key.to_string());
+                        }
+                    }
+                }
+            }
+            None
+        });
+
+        if user_key.is_some() {
+            "personal".to_string()
+        } else if !DEFAULT_DJI_API_KEY.is_empty() {
+            "default".to_string()
+        } else {
+            "none".to_string()
+        }
+    }
+
     /// Save the API key to the config file
     pub fn save_api_key(&self, api_key: &str) -> Result<(), ApiError> {
         let app_dir = self
@@ -179,6 +235,41 @@ impl DjiApi {
         }
 
         log::info!("Saved DJI API key to config.json");
+        Ok(())
+    }
+
+    /// Remove the API key from the config file (falls back to default)
+    pub fn remove_api_key(&self) -> Result<(), ApiError> {
+        let app_dir = self
+            .app_data_dir
+            .as_ref()
+            .ok_or(ApiError::ApiKeyNotConfigured)?;
+
+        let config_path = app_dir.join("config.json");
+
+        // Load existing config or create new
+        let mut config = if config_path.exists() {
+            let content = fs::read_to_string(&config_path)?;
+            serde_json::from_str(&content).unwrap_or_default()
+        } else {
+            AppConfig::default()
+        };
+
+        config.dji_api_key = None;
+
+        let content = serde_json::to_string_pretty(&config)
+            .map_err(|e| ApiError::ApiResponse(e.to_string()))?;
+
+        fs::write(&config_path, content)?;
+
+        // Clear cache so it re-reads and falls back to default
+        if let Some(cache) = API_KEY.get() {
+            if let Ok(mut write) = cache.write() {
+                *write = None;
+            }
+        }
+
+        log::info!("Removed DJI API key from config.json, falling back to default");
         Ok(())
     }
 

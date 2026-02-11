@@ -273,11 +273,25 @@ mod tauri_app {
     }
 
     #[tauri::command]
+    pub async fn get_api_key_type(state: State<'_, AppState>) -> Result<String, String> {
+        let api = DjiApi::with_app_data_dir(state.db.data_dir.clone());
+        Ok(api.get_api_key_type())
+    }
+
+    #[tauri::command]
     pub async fn set_api_key(api_key: String, state: State<'_, AppState>) -> Result<bool, String> {
         let api = DjiApi::with_app_data_dir(state.db.data_dir.clone());
         api.save_api_key(&api_key)
             .map(|_| true)
             .map_err(|e| format!("Failed to save API key: {}", e))
+    }
+
+    #[tauri::command]
+    pub async fn remove_api_key(state: State<'_, AppState>) -> Result<bool, String> {
+        let api = DjiApi::with_app_data_dir(state.db.data_dir.clone());
+        api.remove_api_key()
+            .map(|_| true)
+            .map_err(|e| format!("Failed to remove API key: {}", e))
     }
 
     #[tauri::command]
@@ -537,7 +551,9 @@ mod tauri_app {
                 delete_all_flights,
                 update_flight_name,
                 has_api_key,
+                get_api_key_type,
                 set_api_key,
+                remove_api_key,
                 get_app_data_dir,
                 get_app_log_dir,
                 export_backup,

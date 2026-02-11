@@ -158,6 +158,14 @@ export async function hasApiKey(): Promise<boolean> {
   return invoke('has_api_key') as Promise<boolean>;
 }
 
+export async function getApiKeyType(): Promise<string> {
+  if (isWeb) {
+    return fetchJson<string>('/api_key_type');
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('get_api_key_type') as Promise<string>;
+}
+
 export async function setApiKey(apiKey: string): Promise<boolean> {
   if (isWeb) {
     return fetchJson<boolean>('/set_api_key', {
@@ -167,6 +175,16 @@ export async function setApiKey(apiKey: string): Promise<boolean> {
   }
   const invoke = await getTauriInvoke();
   return invoke('set_api_key', { apiKey }) as Promise<boolean>;
+}
+
+export async function removeApiKey(): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/remove_api_key', {
+      method: 'DELETE',
+    });
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('remove_api_key') as Promise<boolean>;
 }
 
 export async function getAppDataDir(): Promise<string> {

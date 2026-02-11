@@ -280,6 +280,14 @@ async fn has_api_key(
     Json(api.has_api_key())
 }
 
+/// GET /api/api_key_type — Get the type of the configured API key
+async fn get_api_key_type(
+    AxumState(state): AxumState<WebAppState>,
+) -> Json<String> {
+    let api = DjiApi::with_app_data_dir(state.db.data_dir.clone());
+    Json(api.get_api_key_type())
+}
+
 /// POST /api/set_api_key — Set the DJI API key
 #[derive(Deserialize)]
 struct SetApiKeyPayload {
@@ -294,6 +302,16 @@ async fn set_api_key(
     api.save_api_key(&payload.api_key)
         .map(|_| Json(true))
         .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save API key: {}", e)))
+}
+
+/// DELETE /api/remove_api_key — Remove the custom API key (fall back to default)
+async fn remove_api_key(
+    AxumState(state): AxumState<WebAppState>,
+) -> Result<Json<bool>, (StatusCode, Json<ErrorResponse>)> {
+    let api = DjiApi::with_app_data_dir(state.db.data_dir.clone());
+    api.remove_api_key()
+        .map(|_| Json(true))
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to remove API key: {}", e)))
 }
 
 /// GET /api/app_data_dir — Get the app data directory path
@@ -630,7 +648,9 @@ pub fn build_router(state: WebAppState) -> Router {
         .route("/api/regenerate_smart_tags", post(regenerate_smart_tags))
         .route("/api/regenerate_flight_smart_tags/:id", post(regenerate_flight_smart_tags))
         .route("/api/has_api_key", get(has_api_key))
+        .route("/api/api_key_type", get(get_api_key_type))
         .route("/api/set_api_key", post(set_api_key))
+        .route("/api/remove_api_key", delete(remove_api_key))
         .route("/api/app_data_dir", get(get_app_data_dir))
         .route("/api/app_log_dir", get(get_app_log_dir))
         .route("/api/backup", get(export_backup))

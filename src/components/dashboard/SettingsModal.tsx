@@ -15,6 +15,7 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
   const [hasKey, setHasKey] = useState(false);
+  const [apiKeyType, setApiKeyType] = useState<'none' | 'default' | 'personal'>('none');
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [appDataDir, setAppDataDir] = useState('');
@@ -126,6 +127,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const exists = await api.hasApiKey();
       setHasKey(exists);
+      const keyType = await api.getApiKeyType();
+      setApiKeyType(keyType as 'none' | 'default' | 'personal');
     } catch (err) {
       console.error('Failed to check API key:', err);
     }
@@ -175,6 +178,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setMessage({ type: 'success', text: 'API key saved successfully!' });
       setHasKey(true);
       setApiKey(''); // Clear the input for security
+      await checkApiKey(); // Refresh key type to update badge
     } catch (err) {
       setMessage({ type: 'error', text: `Failed to save: ${err}` });
     } finally {
@@ -397,15 +401,42 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </p>
 
               {/* Status indicator */}
-              <div className="flex items-center gap-2 mb-3">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    hasKey ? 'bg-green-500' : 'bg-yellow-500'
-                  }`}
-                />
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="text-sm text-gray-400">
                   {hasKey ? 'API key configured' : 'No API key configured'}
                 </span>
+                {apiKeyType === 'none' && (
+                  <span className="api-key-badge api-key-badge-none inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                    <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 110 14A7 7 0 018 1zm-.5 3v5h1V4h-1zm0 6v1h1v-1h-1z"/></svg>
+                    Invalid
+                  </span>
+                )}
+                {apiKeyType === 'default' && (
+                  <span className="api-key-badge api-key-badge-default inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                    <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7"/></svg>
+                    Default
+                  </span>
+                )}
+                {apiKeyType === 'personal' && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.removeApiKey();
+                        await checkApiKey();
+                        setMessage({ type: 'success', text: 'Custom API key removed. Using default key.' });
+                      } catch (err) {
+                        setMessage({ type: 'error', text: `Failed to remove key: ${err}` });
+                      }
+                    }}
+                    className="api-key-badge api-key-badge-personal group inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full cursor-pointer transition-all duration-150 hover:api-key-badge-remove"
+                    title="Click to remove custom key and use default"
+                  >
+                    <svg className="w-3 h-3 group-hover:hidden" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 110 14A7 7 0 018 1zm3.354 4.646a.5.5 0 010 .708l-4 4a.5.5 0 01-.708 0l-2-2a.5.5 0 11.708-.708L7 9.293l3.646-3.647a.5.5 0 01.708 0z"/></svg>
+                    <svg className="w-3 h-3 hidden group-hover:block" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 110 14A7 7 0 018 1zm2.854 4.146a.5.5 0 010 .708L8.707 8l2.147 2.146a.5.5 0 01-.708.708L8 8.707l-2.146 2.147a.5.5 0 01-.708-.708L7.293 8 5.146 5.854a.5.5 0 11.708-.708L8 7.293l2.146-2.147a.5.5 0 01.708 0z"/></svg>
+                    <span className="group-hover:hidden">Personal</span>
+                    <span className="hidden group-hover:inline">Remove</span>
+                  </button>
+                )}
               </div>
 
               <input
