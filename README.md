@@ -85,6 +85,9 @@ There is no installation step if you want to use the standalone binary builds, j
 
 ### macOS Users: "Damaged File" Error Fix
 
+<img width="320" height="311" alt="image" src="https://github.com/user-attachments/assets/2787ffff-9961-433c-898a-b548c738f1a2" />
+
+> [!IMPORTANT]
 If you see **"DJI Logbook is damaged and can't be opened"** on macOS (especially on M1/M2/M3/M4/M5 Macs), this is a Gatekeeper security warning for unsigned apps, **not a corrupted file**. For signing the files with a official apple developer account, it costs $99/year!
 
 **Quick Fix Remove quarantine attribute**
