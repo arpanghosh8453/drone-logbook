@@ -25,6 +25,10 @@ interface FlightState {
   allTags: string[];
   smartTagsEnabled: boolean;
 
+  // Update check
+  updateStatus: 'idle' | 'checking' | 'latest' | 'outdated' | 'failed';
+  latestVersion: string | null;
+
   // Flight data cache (keyed by flight ID)
   _flightDataCache: Map<number, FlightDataResponse>;
 
@@ -45,6 +49,7 @@ interface FlightState {
   setThemeMode: (themeMode: 'system' | 'dark' | 'light') => void;
   setDonationAcknowledged: (value: boolean) => void;
   setSupporterBadge: (active: boolean) => void;
+  checkForUpdates: () => Promise<void>;
   clearSelection: () => void;
   clearError: () => void;
 
@@ -91,6 +96,8 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   _flightDataCache: new Map(),
   allTags: [],
   smartTagsEnabled: true,
+  updateStatus: 'idle',
+  latestVersion: null,
   batteryNameMap: (() => {
     if (typeof localStorage === 'undefined') return {};
     try {
@@ -448,6 +455,41 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   // Sidebar filtered flight IDs
   sidebarFilteredFlightIds: null,
   setSidebarFilteredFlightIds: (ids) => set({ sidebarFilteredFlightIds: ids }),
+
+  checkForUpdates: async () => {
+    set({ updateStatus: 'checking' });
+    try {
+      const res = await fetch(
+        'https://api.github.com/repos/arpanghosh8453/dji-logbook/releases/latest',
+        { headers: { Accept: 'application/vnd.github.v3+json' } }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const tagName: string = data.tag_name ?? '';
+      // Strip leading 'v' for comparison (e.g. "v2.1.0" → "2.1.0")
+      const latest = tagName.replace(/^v/i, '');
+
+      // Get current app version
+      let current = '';
+      try {
+        const { getVersion } = await import('@tauri-apps/api/app');
+        current = await getVersion();
+      } catch {
+        current = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '').replace(/^v/i, '');
+      }
+
+      if (!latest || !current) {
+        set({ updateStatus: 'failed', latestVersion: null });
+        return;
+      }
+
+      const isLatest = latest === current;
+      set({ updateStatus: isLatest ? 'latest' : 'outdated', latestVersion: latest });
+    } catch (err) {
+      console.warn('[UpdateCheck] Failed:', err);
+      set({ updateStatus: 'failed', latestVersion: null });
+    }
+  },
 
   clearSelection: () =>
     set({

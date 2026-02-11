@@ -23,6 +23,7 @@ export function Dashboard() {
     themeMode,
     loadOverview,
     supporterBadgeActive,
+    checkForUpdates,
   } = useFlightStore();
   const [showSettings, setShowSettings] = useState(false);
   const [activeView, setActiveView] = useState<'flights' | 'overview'>('flights');
@@ -52,6 +53,11 @@ export function Dashboard() {
       localStorage.setItem('sidebarWidth', String(sidebarWidth));
     }
   }, [sidebarWidth]);
+
+  // Check for app updates once on mount
+  useEffect(() => {
+    checkForUpdates();
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {

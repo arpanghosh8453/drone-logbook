@@ -272,7 +272,13 @@
       "component": "FlightMap.tsx: StickArrows component uses VBar/HBar sub-components with background track (.stick-bar-track) and foreground fill that grows from center outward proportional to stick input (0-100%). Center dot retained. No text labels (removed L/R headers, Up/Down/Fwd/Back/CCW/CW labels).",
       "layout": "RC stick overlay and playbar wrapped in a shared flex-col container (items-stretch) so both share the exact same width. Left and right stick controls placed on opposite ends via justify-between. Gap (gap-1.5) separates overlay from playbar.",
       "theming": "index.css: CSS custom properties for bar fill colors — dark mode uses vivid cyan (--stick-bar-active: rgba(56,200,255,0.95)), light mode uses dark slate (--stick-bar-active: rgba(30,41,59,0.9)) for visibility on white backgrounds. Track rails always visible via --stick-track. Semi-transparent backdrop-blur background (--stick-bg: 38% dark / 42% light opacity).",
-      "sizing": "Grid: 56x60px per stick. Bar length: 21px max. Bar thickness: 4px. Overlay padding: px-5 py-1."
+      "sizing": "Grid: 56x60px per stick. Bar length: 21px max. Bar thickness: 4px. Overlay padding: px-5 py-3."
+    },
+    "update_check_badge": {
+      "description": "Automatic version check against GitHub releases on app start. Shows a capsule badge next to the version number in Settings.",
+      "store": "flightStore.ts: Added updateStatus ('idle'|'checking'|'latest'|'outdated'|'failed') and latestVersion state. checkForUpdates() action fetches latest release tag from GitHub API (api.github.com/repos/arpanghosh8453/dji-logbook/releases/latest), compares with current app version (Tauri getVersion() or __APP_VERSION__ fallback).",
+      "ui": "SettingsModal.tsx: Capsule badge next to App Version — green 'Latest' (emerald) when up-to-date, amber 'Update to vX.X.X' when outdated (links to release page), red 'Check failed' on network error, gray 'Checking…' with spinner while fetching.",
+      "trigger": "Dashboard.tsx: checkForUpdates() called once on mount via useEffect."
     },
     "v1_5_0_sidebar_and_telemetry": {
       "description": "Sidebar UX polish, unified sidebar filters for Overview, weather modal fix, map replay telemetry overlay.",
