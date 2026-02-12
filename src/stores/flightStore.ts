@@ -61,6 +61,11 @@ interface FlightState {
   batteryNameMap: Record<string, string>;
   renameBattery: (serial: string, displayName: string) => void;
   getBatteryDisplayName: (serial: string) => string;
+
+  // Drone name mapping (serial -> custom display name)
+  droneNameMap: Record<string, string>;
+  renameDrone: (serial: string, displayName: string) => void;
+  getDroneDisplayName: (serial: string, fallbackName: string) => string;
 }
 
 export const useFlightStore = create<FlightState>((set, get) => ({
@@ -102,6 +107,15 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     if (typeof localStorage === 'undefined') return {};
     try {
       const stored = localStorage.getItem('batteryNameMap');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  })(),
+  droneNameMap: (() => {
+    if (typeof localStorage === 'undefined') return {};
+    try {
+      const stored = localStorage.getItem('droneNameMap');
       return stored ? JSON.parse(stored) : {};
     } catch {
       return {};
@@ -450,6 +464,24 @@ export const useFlightStore = create<FlightState>((set, get) => ({
 
   getBatteryDisplayName: (serial: string) => {
     return get().batteryNameMap[serial] || serial;
+  },
+
+  renameDrone: (serial: string, displayName: string) => {
+    const map = { ...get().droneNameMap };
+    if (displayName.trim() === '') {
+      // Reset to original name
+      delete map[serial];
+    } else {
+      map[serial] = displayName.trim();
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('droneNameMap', JSON.stringify(map));
+    }
+    set({ droneNameMap: map });
+  },
+
+  getDroneDisplayName: (serial: string, fallbackName: string) => {
+    return get().droneNameMap[serial] || fallbackName;
   },
 
   // Sidebar filtered flight IDs

@@ -726,31 +726,105 @@ body.theme-light .echarts-tooltip .tooltip-time-tag {
   --rdp-background-color: rgb(var(--dji-primary) / 0.15);
   --rdp-outline: 2px solid rgb(var(--dji-primary) / 0.5);
   --rdp-outline-selected: 2px solid rgb(var(--dji-primary) / 0.6);
-  --rdp-selected-color: #ffffff;
   --rdp-day_button-border-radius: 8px;
   --rdp-cell-size: 36px;
   font-family: inherit;
 }
 
-.rdp-theme .rdp {
+/* Dark mode calendar - uses dark surface background */
+.rdp-theme.rdp-dark {
+  --rdp-selected-color: #e2e8f0;
+  --rdp-range_middle-color: #e2e8f0;
+  --rdp-range_middle-background-color: rgb(var(--dji-primary) / 0.2);
+}
+
+.rdp-theme.rdp-dark .rdp {
   color: #e2e8f0;
 }
 
-body.theme-light .rdp-theme .rdp {
+.rdp-theme.rdp-dark .rdp-day {
+  color: #e2e8f0;
+}
+
+.rdp-theme.rdp-dark .rdp-day_button {
+  color: #e2e8f0;
+}
+
+.rdp-theme.rdp-dark .rdp-weekday {
+  color: #9ca3af;
+}
+
+.rdp-theme.rdp-dark .rdp-day_disabled,
+.rdp-theme.rdp-dark .rdp-day_disabled .rdp-day_button {
+  color: #4b5563 !important;
+}
+
+/* Dark mode: days in range middle */
+.rdp-theme.rdp-dark .rdp-day_range_middle,
+.rdp-theme.rdp-dark .rdp-day_range_middle .rdp-day_button,
+.rdp-theme.rdp-dark .rdp-day_selected:not(.rdp-day_range_start):not(.rdp-day_range_end),
+.rdp-theme.rdp-dark .rdp-day_selected:not(.rdp-day_range_start):not(.rdp-day_range_end) .rdp-day_button {
+  background-color: rgb(var(--dji-primary) / 0.2) !important;
+  color: #e2e8f0 !important;
+}
+
+/* Dark mode: range start and end days */
+.rdp-theme.rdp-dark .rdp-day_range_start,
+.rdp-theme.rdp-dark .rdp-day_range_start .rdp-day_button,
+.rdp-theme.rdp-dark .rdp-day_range_end,
+.rdp-theme.rdp-dark .rdp-day_range_end .rdp-day_button {
+  background-color: rgb(var(--dji-primary)) !important;
+  color: #ffffff !important;
+}
+
+/* Light mode calendar - uses white background */
+.rdp-theme.rdp-light {
+  --rdp-selected-color: #0f172a;
+  --rdp-range_middle-color: #0f172a;
+  --rdp-range_middle-background-color: rgb(var(--dji-primary) / 0.15);
+}
+
+.rdp-theme.rdp-light .rdp {
   color: #0f172a;
+}
+
+.rdp-theme.rdp-light .rdp-day {
+  color: #1e293b;
+}
+
+.rdp-theme.rdp-light .rdp-day_button {
+  color: #1e293b;
+}
+
+.rdp-theme.rdp-light .rdp-weekday {
+  color: #64748b;
+}
+
+.rdp-theme.rdp-light .rdp-day_disabled,
+.rdp-theme.rdp-light .rdp-day_disabled .rdp-day_button {
+  color: #94a3b8 !important;
+}
+
+/* Light mode: days in range middle */
+.rdp-theme.rdp-light .rdp-day_range_middle,
+.rdp-theme.rdp-light .rdp-day_range_middle .rdp-day_button,
+.rdp-theme.rdp-light .rdp-day_selected:not(.rdp-day_range_start):not(.rdp-day_range_end),
+.rdp-theme.rdp-light .rdp-day_selected:not(.rdp-day_range_start):not(.rdp-day_range_end) .rdp-day_button {
+  background-color: rgb(var(--dji-primary) / 0.15) !important;
+  color: #0f172a !important;
+}
+
+/* Light mode: range start and end days */
+.rdp-theme.rdp-light .rdp-day_range_start,
+.rdp-theme.rdp-light .rdp-day_range_start .rdp-day_button,
+.rdp-theme.rdp-light .rdp-day_range_end,
+.rdp-theme.rdp-light .rdp-day_range_end .rdp-day_button {
+  background-color: rgb(var(--dji-primary)) !important;
+  color: #ffffff !important;
 }
 
 .rdp-theme .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
   background-color: rgb(var(--dji-primary) / 0.15);
-}
-
-.rdp-theme .rdp-day_range_middle {
-  background-color: rgb(var(--dji-primary) / 0.12);
-  color: #e2e8f0;
-}
-
-body.theme-light .rdp-theme .rdp-day_range_middle {
-  color: #0f172a;
 }
 
 .rdp-theme .rdp-caption_label {

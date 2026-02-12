@@ -4,8 +4,10 @@
  * Uses sidebar filters from the flight list for all calculations
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
+import { DayPicker, type DateRange } from 'react-day-picker';
+import 'react-day-picker/dist/style.css';
 import type { BatteryHealthPoint, Flight, OverviewStats } from '@/types';
 import {
   formatDistance,
@@ -41,6 +43,8 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
   const themeMode = useFlightStore((state) => state.themeMode);
   const getBatteryDisplayName = useFlightStore((state) => state.getBatteryDisplayName);
   const renameBattery = useFlightStore((state) => state.renameBattery);
+  const getDroneDisplayName = useFlightStore((state) => state.getDroneDisplayName);
+  const renameDrone = useFlightStore((state) => state.renameDrone);
   const sidebarFilteredFlightIds = useFlightStore((state) => state.sidebarFilteredFlightIds);
   const resolvedTheme = useMemo(() => resolveThemeMode(themeMode), [themeMode]);
 
@@ -78,18 +82,20 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
       .sort((a, b) => b.flightCount - a.flightCount);
 
     // Drone usage with disambiguation for same model names
-    const droneMap = new Map<string, { model: string; serial: string | null; name: string | null; count: number }>();
+    const droneMap = new Map<string, { model: string; serial: string | null; name: string | null; count: number; totalDurationSecs: number }>();
     filteredFlights.forEach((f) => {
       const key = `${f.droneModel ?? 'Unknown'}||${f.droneSerial ?? ''}`;
       const existing = droneMap.get(key);
       if (existing) {
         existing.count++;
+        existing.totalDurationSecs += f.durationSecs ?? 0;
       } else {
         droneMap.set(key, {
           model: f.droneModel ?? 'Unknown',
           serial: f.droneSerial ?? null,
           name: f.aircraftName ?? null,
           count: 1,
+          totalDurationSecs: f.durationSecs ?? 0,
         });
       }
     });
@@ -110,10 +116,11 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
           droneSerial: data.serial,
           aircraftName: data.name,
           flightCount: data.count,
+          totalDurationSecs: data.totalDurationSecs,
           displayLabel: needsSerial ? `${displayName} (${data.serial})` : displayName,
         };
       })
-      .sort((a, b) => b.flightCount - a.flightCount);
+      .sort((a, b) => b.totalDurationSecs - a.totalDurationSecs);
 
     // Flights by date (from filtered)
     const dateMap = new Map<string, number>();
@@ -220,14 +227,20 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
         <StatCard label="Avg Speed" value={formatSpeed(avgSpeed, unitSystem)} small />
       </div>
 
-      {/* Activity Heatmap */}
-        <div className="card p-4">
-          <h3 className="text-sm font-semibold text-white mb-3 text-center">
-            Flight Activity (Last 365 Days)
-          </h3>
-        <ActivityHeatmap
+      {/* Activity Heatmap + Drone Flight Time Row */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: '60% 40%', minHeight: '240px' }}>
+        {/* Activity Heatmap */}
+        <ActivityHeatmapCard
           flightsByDate={filteredStats.flightsByDate}
           isLight={resolvedTheme === 'light'}
+        />
+
+        {/* Drone Flight Time */}
+        <DroneFlightTimeList
+          drones={filteredStats.dronesUsed}
+          isLight={resolvedTheme === 'light'}
+          getDroneDisplayName={getDroneDisplayName}
+          renameDrone={renameDrone}
         />
       </div>
 
@@ -403,17 +416,178 @@ function StatCard({
   );
 }
 
-function ActivityHeatmap({
+function ActivityHeatmapCard({
   flightsByDate,
   isLight,
 }: {
   flightsByDate: { date: string; count: number }[];
   isLight: boolean;
 }) {
+  const today = new Date();
+  const oneYearAgo = new Date(today);
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  oneYearAgo.setDate(oneYearAgo.getDate() + 1);
+
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: oneYearAgo,
+    to: today,
+  });
+  // Track which date is being picked: 'from' or 'to'
+  const [pickingDate, setPickingDate] = useState<'from' | 'to' | null>(null);
+  const fromButtonRef = useRef<HTMLButtonElement>(null);
+  const toButtonRef = useRef<HTMLButtonElement>(null);
+  const [dateAnchor, setDateAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    const ref = pickingDate === 'from' ? fromButtonRef.current : toButtonRef.current;
+    if (pickingDate && ref) {
+      const rect = ref.getBoundingClientRect();
+      setDateAnchor({
+        top: rect.bottom + 4,
+        left: Math.min(rect.left, window.innerWidth - 330), // Keep within viewport
+        width: 320,
+      });
+    }
+  }, [pickingDate]);
+
+  const formatDate = (d: Date | undefined) => {
+    if (!d) return '—';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Filter flights by date range
+  const filteredByDate = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return flightsByDate;
+    const fromStr = dateRange.from.toISOString().split('T')[0];
+    const toStr = dateRange.to.toISOString().split('T')[0];
+    return flightsByDate.filter((f) => f.date >= fromStr && f.date <= toStr);
+  }, [flightsByDate, dateRange]);
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    
+    if (pickingDate === 'from') {
+      // If picking 'from' and it's after current 'to', adjust 'to'
+      const newTo = dateRange?.to && date > dateRange.to ? date : dateRange?.to;
+      setDateRange({ from: date, to: newTo });
+    } else if (pickingDate === 'to') {
+      // If picking 'to' and it's before current 'from', adjust 'from'
+      const newFrom = dateRange?.from && date < dateRange.from ? date : dateRange?.from;
+      setDateRange({ from: newFrom, to: date });
+    }
+    setPickingDate(null);
+  };
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-white">Flight Activity</h3>
+        <div className="flex items-center gap-1 text-xs">
+          <CalendarIcon />
+          <button
+            ref={fromButtonRef}
+            type="button"
+            onClick={() => setPickingDate(pickingDate === 'from' ? null : 'from')}
+            className={`px-1.5 py-0.5 rounded transition-colors ${
+              pickingDate === 'from'
+                ? 'bg-dji-primary/20 text-dji-primary'
+                : 'text-gray-300 hover:text-white hover:bg-gray-700/50'
+            }`}
+            title="Select start date"
+          >
+            {formatDate(dateRange?.from)}
+          </button>
+          <span className="text-gray-500">–</span>
+          <button
+            ref={toButtonRef}
+            type="button"
+            onClick={() => setPickingDate(pickingDate === 'to' ? null : 'to')}
+            className={`px-1.5 py-0.5 rounded transition-colors ${
+              pickingDate === 'to'
+                ? 'bg-dji-primary/20 text-dji-primary'
+                : 'text-gray-300 hover:text-white hover:bg-gray-700/50'
+            }`}
+            title="Select end date"
+          >
+            {formatDate(dateRange?.to)}
+          </button>
+        </div>
+      </div>
+
+      {pickingDate && dateAnchor && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setPickingDate(null)}
+          />
+          <div
+            className={`fixed z-50 rounded-xl border p-3 shadow-xl ${isLight ? 'border-gray-300 bg-white' : 'border-gray-700 bg-dji-surface'}`}
+            style={{
+              top: dateAnchor.top,
+              left: dateAnchor.left,
+              width: dateAnchor.width,
+            }}
+          >
+            <div className={`text-xs font-medium mb-2 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+              Select {pickingDate === 'from' ? 'start' : 'end'} date
+            </div>
+            <DayPicker
+              mode="single"
+              selected={pickingDate === 'from' ? dateRange?.from : dateRange?.to}
+              onSelect={handleDateSelect}
+              disabled={{ after: today }}
+              defaultMonth={pickingDate === 'from' ? dateRange?.from : dateRange?.to}
+              weekStartsOn={1}
+              numberOfMonths={1}
+              className={`rdp-theme ${isLight ? 'rdp-light' : 'rdp-dark'}`}
+            />
+            <div className="mt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setDateRange({ from: oneYearAgo, to: today });
+                  setPickingDate(null);
+                }}
+                className={`text-xs ${isLight ? 'text-gray-500 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}
+              >
+                Reset to 365 days
+              </button>
+              <button
+                type="button"
+                onClick={() => setPickingDate(null)}
+                className={`text-xs ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-200 hover:text-white'}`}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="overflow-x-auto">
+        <ActivityHeatmap
+          flightsByDate={filteredByDate}
+          isLight={isLight}
+          dateRange={dateRange}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ActivityHeatmap({
+  flightsByDate,
+  isLight,
+  dateRange,
+}: {
+  flightsByDate: { date: string; count: number }[];
+  isLight: boolean;
+  dateRange?: DateRange;
+}) {
   const maxWidth = 1170;
   const labelWidth = 28;
   const gapSize = 2;
-  const cellSize = 12;
+  const cellSize = 13; // Increased from 12 for better visibility
 
   const { grid, months, maxCount, weekCount } = useMemo(() => {
     const pad = (value: number) => String(value).padStart(2, '0');
@@ -428,24 +602,27 @@ function ActivityHeatmap({
     const dateMap = new Map<string, number>();
     flightsByDate.forEach((f) => dateMap.set(f.date, f.count));
 
-    // Generate 365 days grid (7 rows x ~52 columns)
-    const today = new Date();
-    const oneYearAgo = new Date(today);
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    oneYearAgo.setDate(oneYearAgo.getDate() + 1);
+    // Use date range or default to last 365 days
+    const endDate = dateRange?.to ?? new Date();
+    const startDateRaw = dateRange?.from ?? (() => {
+      const d = new Date(endDate);
+      d.setFullYear(d.getFullYear() - 1);
+      d.setDate(d.getDate() + 1);
+      return d;
+    })();
 
-    // Find the first Sunday on or before oneYearAgo
-    const startDate = new Date(oneYearAgo);
+    // Find the first Sunday on or before startDate
+    const startDate = new Date(startDateRaw);
     startDate.setDate(startDate.getDate() - startDate.getDay());
 
     const weeks: { date: Date; count: number }[][] = [];
     const currentDate = new Date(startDate);
     let maxCount = 0;
 
-    while (currentDate <= today) {
+    while (currentDate <= endDate) {
       const week: { date: Date; count: number }[] = [];
       for (let day = 0; day < 7; day++) {
-        if (currentDate <= today && currentDate >= oneYearAgo) {
+        if (currentDate <= endDate && currentDate >= startDateRaw) {
           const dateStr = toDateKey(currentDate);
           const count = dateMap.get(dateStr) || 0;
           maxCount = Math.max(maxCount, count);
@@ -476,7 +653,7 @@ function ActivityHeatmap({
     });
 
     return { grid: weeks, months, maxCount, weekCount: weeks.length };
-  }, [flightsByDate]);
+  }, [flightsByDate, dateRange]);
 
   const getColor = (count: number) => {
     if (count < 0) return 'transparent';
@@ -586,6 +763,193 @@ function ActivityHeatmap({
             <span>More</span>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-gray-400"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function DroneFlightTimeList({
+  drones,
+  isLight,
+  getDroneDisplayName,
+  renameDrone,
+}: {
+  drones: { droneModel: string; droneSerial: string | null; aircraftName: string | null; flightCount: number; totalDurationSecs: number; displayLabel: string }[];
+  isLight: boolean;
+  getDroneDisplayName: (serial: string, fallbackName: string) => string;
+  renameDrone: (serial: string, displayName: string) => void;
+}) {
+  const [editingSerial, setEditingSerial] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  if (drones.length === 0) {
+    return (
+      <div className="card p-4">
+        <h3 className="text-sm font-semibold text-white mb-3">Drone Flight Time</h3>
+        <p className="text-sm text-gray-400">No drone data available.</p>
+      </div>
+    );
+  }
+
+  // Find max duration for progress bar scaling
+  const maxDuration = Math.max(...drones.map((d) => d.totalDurationSecs));
+
+  const handleStartRename = (serial: string, fallbackName: string) => {
+    setEditingSerial(serial);
+    setDraftName(getDroneDisplayName(serial, fallbackName));
+    setRenameError(null);
+  };
+
+  const handleSaveRename = (serial: string) => {
+    const name = draftName.trim();
+    if (name.length === 0) {
+      setEditingSerial(null);
+      setRenameError(null);
+      return;
+    }
+    // If name equals the serial itself, just clear the mapping
+    if (name === serial) {
+      renameDrone(serial, '');
+      setEditingSerial(null);
+      setRenameError(null);
+      return;
+    }
+    renameDrone(serial, name);
+    setEditingSerial(null);
+    setRenameError(null);
+  };
+
+  const handleCancelRename = () => {
+    setEditingSerial(null);
+    setDraftName('');
+    setRenameError(null);
+  };
+
+  // Check for duplicate display names to show serial
+  const displayNameCounts = new Map<string, number>();
+  drones.forEach((d) => {
+    const fallback = d.aircraftName || d.droneModel;
+    const displayName = d.droneSerial ? getDroneDisplayName(d.droneSerial, fallback) : fallback;
+    displayNameCounts.set(displayName, (displayNameCounts.get(displayName) || 0) + 1);
+  });
+
+  return (
+    <div className="card p-4">
+      <h3 className="text-sm font-semibold text-white mb-3">Drone Flight Time</h3>
+      <div className="space-y-2 max-h-[200px] overflow-y-auto" style={{ padding: '0 8px 0 4px' }}>
+        {drones.map((drone) => {
+          const fallbackName = drone.aircraftName || drone.droneModel;
+          const displayName = drone.droneSerial ? getDroneDisplayName(drone.droneSerial, fallbackName) : fallbackName;
+          const hasDuplicate = (displayNameCounts.get(displayName) || 0) > 1;
+          const isEditing = drone.droneSerial && editingSerial === drone.droneSerial;
+          const progressPercent = (drone.totalDurationSecs / maxDuration) * 100;
+
+          // Format duration as Xh Ym
+          const hours = Math.floor(drone.totalDurationSecs / 3600);
+          const minutes = Math.floor((drone.totalDurationSecs % 3600) / 60);
+          const durationLabel = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+          return (
+            <div key={drone.droneSerial || drone.droneModel}>
+              {isEditing ? (
+                <div className="mb-1">
+                  <input
+                    value={draftName}
+                    onChange={(e) => {
+                      setDraftName(e.target.value);
+                      setRenameError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveRename(drone.droneSerial!);
+                      if (e.key === 'Escape') handleCancelRename();
+                    }}
+                    className="input h-6 text-xs px-2 w-full"
+                    placeholder="Drone name"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <button
+                      onClick={() => handleSaveRename(drone.droneSerial!)}
+                      className="text-[10px] text-dji-primary hover:text-dji-primary/80"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleCancelRename}
+                      className="text-[10px] text-gray-400 hover:text-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    {renameError && (
+                      <span className="text-[10px] text-red-400">{renameError}</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid items-center gap-1.5 text-xs" style={{ gridTemplateColumns: '140px 1fr 55px' }}>
+                  <span
+                    className={`text-gray-300 font-medium truncate flex items-center justify-end gap-1 ${drone.droneSerial ? 'group cursor-pointer' : ''}`}
+                    onDoubleClick={() => drone.droneSerial && handleStartRename(drone.droneSerial, fallbackName)}
+                    title={drone.droneSerial ? `${displayName}${hasDuplicate ? ` (${drone.droneSerial})` : ''} — double-click to rename` : displayName}
+                  >
+                    <span className="truncate">
+                      {displayName}
+                      {hasDuplicate && drone.droneSerial && (
+                        <span className="text-gray-500 text-[10px] ml-1">({drone.droneSerial})</span>
+                      )}
+                    </span>
+                    {drone.droneSerial && (
+                      <button
+                        onClick={() => handleStartRename(drone.droneSerial!, fallbackName)}
+                        className="p-0.5 text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        title="Rename drone"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                        </svg>
+                      </button>
+                    )}
+                  </span>
+                  <div className="relative h-2 bg-gray-700/50 rounded-full overflow-hidden">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${progressPercent}%`,
+                        backgroundColor: isLight ? '#0ea5e9' : '#00a0dc',
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 text-right" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {durationLabel}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
