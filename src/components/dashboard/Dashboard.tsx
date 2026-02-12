@@ -27,7 +27,7 @@ export function Dashboard() {
     checkForUpdates,
   } = useFlightStore();
   const [showSettings, setShowSettings] = useState(false);
-  const [activeView, setActiveView] = useState<'flights' | 'overview'>('flights');
+  const [activeView, setActiveView] = useState<'flights' | 'overview'>('overview');
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem('sidebarWidth');
