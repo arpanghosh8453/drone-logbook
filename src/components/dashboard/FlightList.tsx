@@ -20,7 +20,24 @@ import { addToBlacklist } from './FlightImporter';
 import 'react-day-picker/dist/style.css';
 
 /**
+ * Check if element is mostly visible in the viewport
+ */
+function isElementInView(element: HTMLElement, threshold: number = 0.6): boolean {
+  const rect = element.getBoundingClientRect();
+  const windowHeight = window.innerHeight;
+  
+  // Calculate how much of the element is visible
+  const visibleTop = Math.max(0, rect.top);
+  const visibleBottom = Math.min(windowHeight, rect.bottom);
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+  const visibleRatio = visibleHeight / rect.height;
+  
+  return visibleRatio >= threshold;
+}
+
+/**
  * Custom smooth scroll with easing for a more polished feel
+ * Skips animation if element is already mostly visible
  */
 function smoothScrollToElement(
   element: HTMLElement,
@@ -28,6 +45,12 @@ function smoothScrollToElement(
   offset: number = 0
 ): Promise<void> {
   return new Promise((resolve) => {
+    // If element is already mostly in view, resolve immediately
+    if (isElementInView(element, 0.5)) {
+      resolve();
+      return;
+    }
+    
     const scrollContainer = element.closest('.overflow-auto') || document.documentElement;
     const isDocScroll = scrollContainer === document.documentElement;
     
@@ -2007,12 +2030,12 @@ ${points}
               onSelectFlight?.(flight.id);
             }
           }}
-          className={`w-full px-3 py-2 text-left cursor-pointer ${
+          className={`w-full px-3 py-2 text-left cursor-pointer transition-colors duration-150 ${
             (activeView === 'overview' 
               ? overviewHighlightedFlightId === flight.id
               : (selectedFlightId === flight.id || previewFlightId === flight.id))
               ? 'bg-dji-primary/20 border-l-2 border-dji-primary'
-              : 'border-l-2 border-transparent'
+              : 'border-l-2 border-transparent hover:bg-gray-700/30 hover:border-l-gray-500'
           }`}
         >
           {/* Rename mode */}
