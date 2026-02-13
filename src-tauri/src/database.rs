@@ -134,6 +134,7 @@ impl Database {
     fn init_schema(&self) -> Result<(), DatabaseError> {
         let conn = self.conn.lock().unwrap();
 
+        // Create base tables (without migrations in the batch)
         conn.execute_batch(
             r#"
             -- ============================================================
@@ -164,11 +165,6 @@ impl Database {
             -- Index for sorting by flight date
             CREATE INDEX IF NOT EXISTS idx_flights_start_time 
                 ON flights(start_time DESC);
-
-            -- Schema migrations for existing databases
-            ALTER TABLE flights ADD COLUMN IF NOT EXISTS display_name VARCHAR;
-            ALTER TABLE flights ADD COLUMN IF NOT EXISTS aircraft_name VARCHAR;
-            ALTER TABLE flights ADD COLUMN IF NOT EXISTS battery_serial VARCHAR;
 
             -- ============================================================
             -- TELEMETRY TABLE: Time-series data for each flight
@@ -236,18 +232,6 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_telemetry_flight_time 
                 ON telemetry(flight_id, timestamp_ms);
 
-            -- Schema migrations for existing databases
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS height DOUBLE;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS vps_height DOUBLE;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rc_uplink INTEGER;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rc_downlink INTEGER;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rc_aileron DOUBLE;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rc_elevator DOUBLE;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rc_throttle DOUBLE;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rc_rudder DOUBLE;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS is_photo BOOLEAN;
-            ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS is_video BOOLEAN;
-
             -- ============================================================
             -- KEYCHAIN TABLE: Store cached decryption keys for V13+ logs
             -- ============================================================
@@ -275,8 +259,10 @@ impl Database {
             "#,
         )?;
 
-        // Migrate: add tag_type column to flight_tags if it doesn't exist yet
-        Self::ensure_flight_tags_has_type(&conn)?;
+        // Run selective migrations only for missing columns
+        Self::migrate_flights_table(&conn)?;
+        Self::migrate_telemetry_table(&conn)?;
+        Self::migrate_flight_tags_table(&conn)?;
 
         Self::ensure_telemetry_column_order(&conn)?;
 
@@ -284,13 +270,65 @@ impl Database {
         Ok(())
     }
 
-    /// Ensure flight_tags table has the tag_type column (migration for older DBs)
-    fn ensure_flight_tags_has_type(conn: &Connection) -> Result<(), DatabaseError> {
-        let mut stmt = conn.prepare("PRAGMA table_info('flight_tags')")?;
-        let columns: Vec<String> = stmt
+    /// Get existing column names for a table (single query)
+    fn get_table_columns(conn: &Connection, table_name: &str) -> Result<HashSet<String>, DatabaseError> {
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info('{}')", table_name))?;
+        let columns: HashSet<String> = stmt
             .query_map([], |row| row.get::<_, String>(1))?
-            .collect::<Result<Vec<_>, _>>()?;
-        if !columns.contains(&"tag_type".to_string()) {
+            .collect::<Result<HashSet<_>, _>>()?;
+        Ok(columns)
+    }
+
+    /// Migrate flights table - only add missing columns
+    fn migrate_flights_table(conn: &Connection) -> Result<(), DatabaseError> {
+        let columns = Self::get_table_columns(conn, "flights")?;
+        
+        let migrations: &[(&str, &str)] = &[
+            ("display_name", "ALTER TABLE flights ADD COLUMN display_name VARCHAR"),
+            ("aircraft_name", "ALTER TABLE flights ADD COLUMN aircraft_name VARCHAR"),
+            ("battery_serial", "ALTER TABLE flights ADD COLUMN battery_serial VARCHAR"),
+        ];
+
+        for (col_name, sql) in migrations {
+            if !columns.contains(*col_name) {
+                log::info!("Migrating flights table: adding {} column", col_name);
+                conn.execute_batch(sql)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Migrate telemetry table - only add missing columns
+    fn migrate_telemetry_table(conn: &Connection) -> Result<(), DatabaseError> {
+        let columns = Self::get_table_columns(conn, "telemetry")?;
+        
+        let migrations: &[(&str, &str)] = &[
+            ("height", "ALTER TABLE telemetry ADD COLUMN height DOUBLE"),
+            ("vps_height", "ALTER TABLE telemetry ADD COLUMN vps_height DOUBLE"),
+            ("rc_uplink", "ALTER TABLE telemetry ADD COLUMN rc_uplink INTEGER"),
+            ("rc_downlink", "ALTER TABLE telemetry ADD COLUMN rc_downlink INTEGER"),
+            ("rc_aileron", "ALTER TABLE telemetry ADD COLUMN rc_aileron DOUBLE"),
+            ("rc_elevator", "ALTER TABLE telemetry ADD COLUMN rc_elevator DOUBLE"),
+            ("rc_throttle", "ALTER TABLE telemetry ADD COLUMN rc_throttle DOUBLE"),
+            ("rc_rudder", "ALTER TABLE telemetry ADD COLUMN rc_rudder DOUBLE"),
+            ("is_photo", "ALTER TABLE telemetry ADD COLUMN is_photo BOOLEAN"),
+            ("is_video", "ALTER TABLE telemetry ADD COLUMN is_video BOOLEAN"),
+        ];
+
+        for (col_name, sql) in migrations {
+            if !columns.contains(*col_name) {
+                log::info!("Migrating telemetry table: adding {} column", col_name);
+                conn.execute_batch(sql)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Migrate flight_tags table - only add missing columns
+    fn migrate_flight_tags_table(conn: &Connection) -> Result<(), DatabaseError> {
+        let columns = Self::get_table_columns(conn, "flight_tags")?;
+        
+        if !columns.contains("tag_type") {
             log::info!("Migrating flight_tags table: adding tag_type column");
             conn.execute_batch(
                 "ALTER TABLE flight_tags ADD COLUMN tag_type VARCHAR DEFAULT 'auto';",

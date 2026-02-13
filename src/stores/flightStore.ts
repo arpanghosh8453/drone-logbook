@@ -25,6 +25,9 @@ interface FlightState {
   supporterBadgeActive: boolean;
   allTags: string[];
   smartTagsEnabled: boolean;
+  
+  // API key type for cooldown bypass (personal keys skip cooldown)
+  apiKeyType: 'none' | 'default' | 'personal';
 
   // Update check
   updateStatus: 'idle' | 'checking' | 'latest' | 'outdated' | 'failed';
@@ -37,7 +40,9 @@ interface FlightState {
   loadFlights: () => Promise<void>;
   loadOverview: () => Promise<void>;
   selectFlight: (flightId: number) => Promise<void>;
-  importLog: (fileOrPath: string | File) => Promise<ImportResult>;
+  importLog: (fileOrPath: string | File, skipRefresh?: boolean) => Promise<ImportResult>;
+  importLogBatch: (filesOrPaths: (string | File)[]) => Promise<{ processed: number; skipped: number; lastFlightId: number | null }>;
+  loadApiKeyType: () => Promise<void>;
   deleteFlight: (flightId: number) => Promise<void>;
   updateFlightName: (flightId: number, displayName: string) => Promise<void>;
   addTag: (flightId: number, tag: string) => Promise<void>;
@@ -109,6 +114,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   _flightDataCache: new Map(),
   allTags: [],
   smartTagsEnabled: true,
+  apiKeyType: 'none',
   updateStatus: 'idle',
   latestVersion: null,
   batteryNameMap: (() => {
@@ -233,13 +239,14 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   },
 
   // Import a new log file
-  importLog: async (fileOrPath: string | File) => {
+  // skipRefresh: when true, doesn't reload flights/select (used by batch import)
+  importLog: async (fileOrPath: string | File, skipRefresh = false) => {
     set({ isImporting: true, error: null });
     try {
       const result = await api.importLog(fileOrPath);
       
-      if (result.success && result.flightId) {
-        // Reload flights and select the new one
+      if (result.success && result.flightId && !skipRefresh) {
+        // Reload flights and select the new one (only for single imports)
         await get().loadFlights();
         await get().selectFlight(result.flightId);
         // Refresh all tags since import may have added new smart tags
@@ -257,6 +264,55 @@ export const useFlightStore = create<FlightState>((set, get) => ({
         message: errorMessage,
         pointCount: 0,
       };
+    }
+  },
+
+  // Batch import multiple files efficiently (defers refresh until all complete)
+  importLogBatch: async (filesOrPaths: (string | File)[]) => {
+    if (filesOrPaths.length === 0) {
+      return { processed: 0, skipped: 0, lastFlightId: null };
+    }
+
+    set({ isImporting: true, error: null });
+    let processed = 0;
+    let skipped = 0;
+    let lastFlightId: number | null = null;
+
+    for (const item of filesOrPaths) {
+      try {
+        const result = await api.importLog(item);
+        if (result.success && result.flightId) {
+          processed += 1;
+          lastFlightId = result.flightId;
+        } else if (result.message.toLowerCase().includes('already been imported')) {
+          skipped += 1;
+        }
+      } catch {
+        // Skip failed imports in batch mode (errors handled by caller)
+      }
+    }
+
+    // Refresh flight list and tags only once after all imports complete
+    if (processed > 0) {
+      await get().loadFlights();
+      get().loadAllTags();
+      // Select the last successfully imported flight
+      if (lastFlightId !== null) {
+        await get().selectFlight(lastFlightId);
+      }
+    }
+
+    set({ isImporting: false });
+    return { processed, skipped, lastFlightId };
+  },
+
+  // Load API key type (for cooldown bypass decisions)
+  loadApiKeyType: async () => {
+    try {
+      const keyType = await api.getApiKeyType();
+      set({ apiKeyType: keyType as 'none' | 'default' | 'personal' });
+    } catch {
+      set({ apiKeyType: 'none' });
     }
   },
 

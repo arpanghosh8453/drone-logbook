@@ -46,6 +46,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSupporterBadge,
     updateStatus,
     latestVersion,
+    loadApiKeyType,
   } = useFlightStore();
 
   const [showBadgeModal, setShowBadgeModal] = useState(false);
@@ -191,6 +192,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setHasKey(true);
       setApiKey(''); // Clear the input for security
       await checkApiKey(); // Refresh key type to update badge
+      await loadApiKeyType(); // Update global store for FlightImporter cooldown bypass
     } catch (err) {
       setMessage({ type: 'error', text: `Failed to save: ${err}` });
     } finally {
@@ -435,6 +437,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       try {
                         await api.removeApiKey();
                         await checkApiKey();
+                        await loadApiKeyType(); // Update global store
                         setMessage({ type: 'success', text: 'Custom API key removed. Using default key.' });
                       } catch (err) {
                         setMessage({ type: 'error', text: `Failed to remove key: ${err}` });

@@ -2,6 +2,11 @@
  * Flight importer with drag-and-drop support
  * Handles file selection and invokes the Rust import command.
  * Supports both Tauri (native dialog) and web (HTML file input) modes.
+ * 
+ * Optimizations:
+ * - Batch imports defer flight list refresh until all files complete
+ * - Personal API keys bypass cooldown entirely
+ * - Progressive UI updates show import progress without expensive refreshes
  */
 
 import { useCallback, useState, useEffect, useRef } from 'react';
@@ -10,13 +15,18 @@ import { isWebMode, pickFiles } from '@/lib/api';
 import { useFlightStore } from '@/stores/flightStore';
 
 export function FlightImporter() {
-  const { importLog, isImporting } = useFlightStore();
+  const { importLog, isImporting, apiKeyType, loadApiKeyType } = useFlightStore();
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
   const [batchIndex, setBatchIndex] = useState(0);
   const [batchTotal, setBatchTotal] = useState(0);
+
+  // Load API key type on mount to determine cooldown behavior
+  useEffect(() => {
+    loadApiKeyType();
+  }, [loadApiKeyType]);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -28,7 +38,12 @@ export function FlightImporter() {
     }
   };
 
-  /** Process a batch of files (File objects for web, path strings for Tauri) */
+  /** 
+   * Process a batch of files efficiently
+   * - Personal API keys: no cooldown, optimized batch import
+   * - Default API key: cooldown between files, sequential import
+   * - Flight list refreshes periodically so user sees progress
+   */
   const processBatch = async (items: (string | File)[]) => {
     if (items.length === 0) return;
 
@@ -36,48 +51,136 @@ export function FlightImporter() {
     setIsBatchProcessing(true);
     setBatchTotal(items.length);
     setBatchIndex(0);
-    let skipped = 0;
-    let processed = 0;
 
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      const isLast = index === items.length - 1;
-      setBatchIndex(index + 1);
-      const name =
-        typeof item === 'string'
-          ? getShortFileName(item)
-          : item.name.length <= 50
-          ? item.name
-          : `${item.name.slice(0, 50)}…`;
-      setCurrentFileName(name);
-      const result = await importLog(item);
-      if (!result.success) {
-        if (result.message.toLowerCase().includes('already been imported')) {
-          skipped += 1;
+    // Fetch fresh API key type right before processing to ensure it's up to date
+    await loadApiKeyType();
+    const currentApiKeyType = useFlightStore.getState().apiKeyType;
+    const hasPersonalKey = currentApiKeyType === 'personal';
+    
+    // Helper to refresh flight list in background (non-blocking)
+    const refreshFlightListBackground = () => {
+      const { loadFlights, loadAllTags } = useFlightStore.getState();
+      // Don't await - let it run in background
+      loadFlights().then(() => loadAllTags());
+    };
+    
+    if (hasPersonalKey) {
+      // Optimized path: batch import without cooldown
+      // Refresh flight list every 2 files to show progress
+      let processed = 0;
+      let skipped = 0;
+      let failed = 0;
+      const REFRESH_INTERVAL = 2;
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        setBatchIndex(index + 1);
+        const name =
+          typeof item === 'string'
+            ? getShortFileName(item)
+            : item.name.length <= 50
+            ? item.name
+            : `${item.name.slice(0, 50)}…`;
+        setCurrentFileName(name);
+
+        // Import without refreshing flight list (skipRefresh = true)
+        const result = await importLog(item, true);
+        if (!result.success) {
+          if (result.message.toLowerCase().includes('already been imported')) {
+            skipped += 1;
+          } else {
+            failed += 1;
+          }
         } else {
-          alert(result.message);
-        }
-      } else {
-        processed += 1;
-        if (!isLast) {
-          await runCooldown(5);
+          processed += 1;
+          // Refresh flight list periodically so user sees progress
+          if (processed % REFRESH_INTERVAL === 0) {
+            refreshFlightListBackground();
+          }
         }
       }
-    }
 
-    setIsBatchProcessing(false);
-    setCurrentFileName(null);
-    setBatchTotal(0);
-    setBatchIndex(0);
-    if (skipped > 0) {
-      setBatchMessage(
-        `Import finished. ${processed} file${processed === 1 ? '' : 's'} processed, ` +
-          `${skipped} file${skipped === 1 ? '' : 's'} skipped (already imported).`
-      );
+      // Final refresh at the end
+      if (processed > 0) {
+        setCurrentFileName('Refreshing flight list...');
+        const { loadFlights, loadAllTags } = useFlightStore.getState();
+        await loadFlights();
+        loadAllTags();
+      }
+
+      setIsBatchProcessing(false);
+      setCurrentFileName(null);
+      setBatchTotal(0);
+      setBatchIndex(0);
+
+      // Build completion message
+      const parts: string[] = [];
+      if (processed > 0) parts.push(`${processed} file${processed === 1 ? '' : 's'} processed`);
+      if (skipped > 0) parts.push(`${skipped} skipped (already imported)`);
+      if (failed > 0) parts.push(`${failed} failed`);
+      setBatchMessage(`Import finished. ${parts.join(', ')}.`);
+      
     } else {
-      setBatchMessage(
-        `Import finished. ${processed} file${processed === 1 ? '' : 's'} processed.`
-      );
+      // Standard path with cooldown (default API key)
+      // Refresh flight list after each successful import (during cooldown)
+      let skipped = 0;
+      let processed = 0;
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const isLast = index === items.length - 1;
+        setBatchIndex(index + 1);
+        const name =
+          typeof item === 'string'
+            ? getShortFileName(item)
+            : item.name.length <= 50
+            ? item.name
+            : `${item.name.slice(0, 50)}…`;
+        setCurrentFileName(name);
+        
+        // Use skipRefresh=true to defer refresh until batch completes
+        const result = await importLog(item, true);
+        if (!result.success) {
+          if (result.message.toLowerCase().includes('already been imported')) {
+            skipped += 1;
+          } else {
+            alert(result.message);
+          }
+        } else {
+          processed += 1;
+          // Refresh flight list in background while cooldown runs
+          // This way user sees new flights appear during the wait
+          refreshFlightListBackground();
+          
+          // Only apply cooldown between successful imports (not on last)
+          if (!isLast) {
+            await runCooldown(5);
+          }
+        }
+      }
+
+      // Final refresh to ensure everything is up to date
+      if (processed > 0) {
+        setCurrentFileName('Refreshing flight list...');
+        const { loadFlights, loadAllTags } = useFlightStore.getState();
+        await loadFlights();
+        loadAllTags();
+      }
+
+      setIsBatchProcessing(false);
+      setCurrentFileName(null);
+      setBatchTotal(0);
+      setBatchIndex(0);
+      if (skipped > 0) {
+        setBatchMessage(
+          `Import finished. ${processed} file${processed === 1 ? '' : 's'} processed, ` +
+            `${skipped} file${skipped === 1 ? '' : 's'} skipped (already imported).`
+        );
+      } else {
+        setBatchMessage(
+          `Import finished. ${processed} file${processed === 1 ? '' : 's'} processed.`
+        );
+      }
     }
   };
 
@@ -118,7 +221,7 @@ export function FlightImporter() {
         await processBatch(acceptedFiles);
       }
     },
-    [importLog]
+    [importLog, apiKeyType]
   );
 
   const { getRootProps, getInputProps, isDragActive: webDragActive } = useDropzone({
