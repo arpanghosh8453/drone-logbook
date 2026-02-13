@@ -233,7 +233,7 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
       </div>
 
       {/* Activity Heatmap + Drone Flight Time Row */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: '60% 40%', minHeight: '240px' }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: '60% minmax(0, 1fr)', minHeight: '240px' }}>
         {/* Activity Heatmap */}
         <ActivityHeatmapCard
           flightsByDate={filteredStats.flightsByDate}
