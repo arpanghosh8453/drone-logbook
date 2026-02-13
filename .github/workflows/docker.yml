@@ -9,11 +9,6 @@ on:
         description: 'Image tag (defaults to "latest")'
         required: false
         default: 'latest'
-      dry_run:
-        description: 'Dry run — build only, do not push'
-        required: false
-        type: boolean
-        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -64,17 +59,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
-          outputs: ${{ inputs.dry_run && 'type=docker' || format('type=image,name={0}/{1},push-by-digest=true,name-canonical=true,push=true', env.REGISTRY, env.IMAGE_NAME) }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
-        if: ${{ !inputs.dry_run }}
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        if: ${{ !inputs.dry_run }}
         uses: actions/upload-artifact@v4
         with:
           name: digests-${{ matrix.runner }}
@@ -84,7 +77,6 @@ jobs:
 
   # Merge per-platform digests into a single multi-arch manifest
   merge:
-    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     needs: build
     permissions:
