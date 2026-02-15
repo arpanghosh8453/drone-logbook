@@ -109,6 +109,22 @@ async fn import_log(
     // Clean up temp file
     let _ = std::fs::remove_file(&temp_path);
 
+    // Check for duplicate flight based on signature (drone_serial + battery_serial + start_time)
+    if state.db.is_duplicate_flight(
+        parse_result.metadata.drone_serial.as_deref(),
+        parse_result.metadata.battery_serial.as_deref(),
+        parse_result.metadata.start_time,
+    ).unwrap_or(false) {
+        log::info!("Skipping duplicate flight (signature match): {}", file_name);
+        return Ok(Json(ImportResult {
+            success: false,
+            flight_id: None,
+            message: "Duplicate flight — a flight with the same drone, battery, and start time already exists".to_string(),
+            point_count: 0,
+            file_hash: parse_result.metadata.file_hash.clone(),
+        }));
+    }
+
     // Insert flight metadata
     let flight_id = state
         .db
@@ -249,6 +265,18 @@ async fn delete_all_flights(
         .delete_all_flights()
         .map(|_| Json(true))
         .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete all flights: {}", e)))
+}
+
+/// POST /api/flights/deduplicate — Remove duplicate flights
+async fn deduplicate_flights(
+    AxumState(state): AxumState<WebAppState>,
+) -> Result<Json<usize>, (StatusCode, Json<ErrorResponse>)> {
+    log::info!("Running flight deduplication");
+    state
+        .db
+        .deduplicate_flights()
+        .map(Json)
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to deduplicate flights: {}", e)))
 }
 
 /// PUT /api/flights/name — Update flight display name
@@ -643,6 +671,7 @@ pub fn build_router(state: WebAppState) -> Router {
         .route("/api/overview", get(get_overview_stats))
         .route("/api/flights/delete", delete(delete_flight))
         .route("/api/flights/delete_all", delete(delete_all_flights))
+        .route("/api/flights/deduplicate", post(deduplicate_flights))
         .route("/api/flights/name", put(update_flight_name))
         .route("/api/flights/tags/add", post(add_flight_tag))
         .route("/api/flights/tags/remove", post(remove_flight_tag))

@@ -148,6 +148,20 @@ export async function deleteAllFlights(): Promise<boolean> {
   return invoke('delete_all_flights') as Promise<boolean>;
 }
 
+/**
+ * Remove duplicate flights from the database.
+ * Duplicates are identified by matching (drone_serial, battery_serial, start_time within 60s).
+ * Keeps the flight with the most telemetry points.
+ * @returns Number of duplicate flights removed
+ */
+export async function deduplicateFlights(): Promise<number> {
+  if (isWeb) {
+    return fetchJson<number>('/flights/deduplicate', { method: 'POST' });
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('deduplicate_flights') as Promise<number>;
+}
+
 export async function updateFlightName(
   flightId: number,
   displayName: string,

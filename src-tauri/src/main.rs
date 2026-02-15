@@ -200,6 +200,22 @@ mod tauri_app {
             }
         };
 
+        // Check for duplicate flight based on signature (drone_serial + battery_serial + start_time)
+        if state.db.is_duplicate_flight(
+            parse_result.metadata.drone_serial.as_deref(),
+            parse_result.metadata.battery_serial.as_deref(),
+            parse_result.metadata.start_time,
+        ).unwrap_or(false) {
+            log::info!("Skipping duplicate flight (signature match): {}", file_path);
+            return Ok(ImportResult {
+                success: false,
+                flight_id: None,
+                message: "Duplicate flight — a flight with the same drone, battery, and start time already exists".to_string(),
+                point_count: 0,
+                file_hash: parse_result.metadata.file_hash.clone(),
+            });
+        }
+
         log::debug!("Inserting flight metadata: id={}", parse_result.metadata.id);
         let flight_id = state
             .db
@@ -361,6 +377,15 @@ mod tauri_app {
             .delete_all_flights()
             .map(|_| true)
             .map_err(|e| format!("Failed to delete all flights: {}", e))
+    }
+
+    #[tauri::command]
+    pub async fn deduplicate_flights(state: State<'_, AppState>) -> Result<usize, String> {
+        log::info!("Running flight deduplication");
+        state
+            .db
+            .deduplicate_flights()
+            .map_err(|e| format!("Failed to deduplicate flights: {}", e))
     }
 
     #[tauri::command]
@@ -667,6 +692,7 @@ mod tauri_app {
                 get_overview_stats,
                 delete_flight,
                 delete_all_flights,
+                deduplicate_flights,
                 update_flight_name,
                 has_api_key,
                 get_api_key_type,

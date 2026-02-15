@@ -183,6 +183,7 @@ export function FlightImporter() {
       // Refresh flight list every 2 files to show progress
       let processed = 0;
       let skipped = 0;
+      let duplicates = 0;
       let invalidFiles = 0;
       let blacklisted = 0;
       const REFRESH_INTERVAL = 2;
@@ -210,6 +211,8 @@ export function FlightImporter() {
         if (!result.success) {
           if (result.message.toLowerCase().includes('already been imported')) {
             skipped += 1;
+          } else if (result.message.toLowerCase().includes('duplicate flight')) {
+            duplicates += 1;
           } else {
             // Parse errors, corrupt files, incompatible formats, timeouts, etc.
             invalidFiles += 1;
@@ -244,15 +247,18 @@ export function FlightImporter() {
       const parts: string[] = [];
       if (processed > 0) parts.push(`${processed} file${processed === 1 ? '' : 's'} processed`);
       if (skipped > 0) parts.push(`${skipped} skipped (already imported)`);
+      if (duplicates > 0) parts.push(`${duplicates} skipped (duplicate flight)`);
       if (blacklisted > 0) parts.push(`${blacklisted} skipped (blacklisted)`);
       if (invalidFiles > 0) parts.push(`${invalidFiles} skipped (incompatible file)`);
       setBatchMessage(`Import finished. ${parts.join(', ')}.`);
+    } else {
       // Standard path with cooldown (default API key)
       // Refresh flight list after each successful import (during cooldown)
       let skipped = 0;
       let processed = 0;
       let blacklisted = 0;
       let invalidFiles = 0;
+      let duplicates = 0;
 
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
@@ -278,6 +284,8 @@ export function FlightImporter() {
         if (!result.success) {
           if (result.message.toLowerCase().includes('already been imported')) {
             skipped += 1;
+          } else if (result.message.toLowerCase().includes('duplicate flight')) {
+            duplicates += 1;
           } else {
             // Parse errors, corrupt files, incompatible formats, timeouts, etc.
             // Only show alert for manual imports, silently skip for sync
@@ -320,6 +328,7 @@ export function FlightImporter() {
       const parts: string[] = [];
       if (processed > 0) parts.push(`${processed} file${processed === 1 ? '' : 's'} processed`);
       if (skipped > 0) parts.push(`${skipped} skipped (already imported)`);
+      if (duplicates > 0) parts.push(`${duplicates} skipped (duplicate flight)`);
       if (blacklisted > 0) parts.push(`${blacklisted} skipped (blacklisted)`);
       if (invalidFiles > 0) parts.push(`${invalidFiles} skipped (incompatible file)`);
       setBatchMessage(`Import finished. ${parts.join(', ')}.`);

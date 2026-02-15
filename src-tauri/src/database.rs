@@ -71,6 +71,9 @@ impl Database {
         // Initialize schema
         db.init_schema()?;
 
+        // Run one-time startup deduplication for existing data
+        db.run_startup_deduplication();
+
         Ok(db)
     }
 
@@ -261,6 +264,15 @@ impl Database {
                 ON flight_tags(flight_id);
             CREATE INDEX IF NOT EXISTS idx_flight_tags_tag 
                 ON flight_tags(tag);
+
+            -- ============================================================
+            -- SETTINGS TABLE: Key-value store for app settings/flags
+            -- ============================================================
+            CREATE TABLE IF NOT EXISTS settings (
+                key             VARCHAR PRIMARY KEY,
+                value           VARCHAR NOT NULL,
+                updated_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
             "#,
         )?;
 
@@ -1312,6 +1324,167 @@ impl Database {
         )?;
 
         Ok(count > 0)
+    }
+
+    /// Check if a duplicate flight exists based on signature (drone_serial + battery_serial + start_time).
+    /// Returns true if a flight with the same drone, battery, and start time (within 60 seconds) exists.
+    /// If any of the signature fields are None, returns false (can't reliably deduplicate).
+    pub fn is_duplicate_flight(
+        &self,
+        drone_serial: Option<&str>,
+        battery_serial: Option<&str>,
+        start_time: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<bool, DatabaseError> {
+        // If any key field is missing, we can't reliably check for duplicates
+        let (drone, battery, time) = match (drone_serial, battery_serial, start_time) {
+            (Some(d), Some(b), Some(t)) if !d.is_empty() && !b.is_empty() => (d, b, t),
+            _ => return Ok(false),
+        };
+
+        let conn = self.conn.lock().unwrap();
+
+        // Check for existing flight within 60-second window
+        let count: i64 = conn.query_row(
+            r#"
+            SELECT COUNT(*) FROM flights 
+            WHERE drone_serial = ?
+              AND battery_serial = ?
+              AND start_time IS NOT NULL
+              AND ABS(EPOCH(start_time) - EPOCH(?::TIMESTAMPTZ)) < 60
+            "#,
+            params![drone, battery, time.to_rfc3339()],
+            |row| row.get(0),
+        )?;
+
+        Ok(count > 0)
+    }
+
+    /// Remove duplicate flights from the database based on signature (drone_serial + battery_serial + start_time).
+    /// Keeps the flight with the most telemetry points for each duplicate group.
+    /// Returns the number of duplicates removed.
+    pub fn deduplicate_flights(&self) -> Result<usize, DatabaseError> {
+        let conn = self.conn.lock().unwrap();
+        let start = std::time::Instant::now();
+        log::info!("Starting flight deduplication...");
+
+        // Find and delete duplicates, keeping the one with most points
+        // A duplicate is defined as same drone_serial + battery_serial + start_time within 60 seconds
+        let result = conn.execute(
+            r#"
+            WITH ranked AS (
+                SELECT 
+                    id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            drone_serial, 
+                            battery_serial, 
+                            DATE_TRUNC('minute', start_time)
+                        ORDER BY point_count DESC, id ASC
+                    ) as rn
+                FROM flights
+                WHERE drone_serial IS NOT NULL 
+                  AND drone_serial != ''
+                  AND battery_serial IS NOT NULL 
+                  AND battery_serial != ''
+                  AND start_time IS NOT NULL
+            )
+            DELETE FROM flights WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+            "#,
+            [],
+        )?;
+
+        // Clean up orphaned telemetry data
+        conn.execute(
+            "DELETE FROM telemetry WHERE flight_id NOT IN (SELECT id FROM flights)",
+            [],
+        )?;
+
+        // Clean up orphaned tags
+        conn.execute(
+            "DELETE FROM flight_tags WHERE flight_id NOT IN (SELECT id FROM flights)",
+            [],
+        )?;
+
+        log::info!(
+            "Deduplication complete in {:.1}s: {} duplicate flights removed",
+            start.elapsed().as_secs_f64(),
+            result
+        );
+
+        Ok(result)
+    }
+
+    /// Get a setting value by key
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>, DatabaseError> {
+        let conn = self.conn.lock().unwrap();
+        
+        let result: Result<String, _> = conn.query_row(
+            "SELECT value FROM settings WHERE key = ?",
+            params![key],
+            |row| row.get(0),
+        );
+        
+        match result {
+            Ok(value) => Ok(Some(value)),
+            Err(duckdb::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(DatabaseError::from(e)),
+        }
+    }
+
+    /// Set a setting value (insert or update)
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), DatabaseError> {
+        let conn = self.conn.lock().unwrap();
+        
+        // DuckDB doesn't support CURRENT_TIMESTAMP in ON CONFLICT, so use INSERT OR REPLACE
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            params![key, value],
+        )?;
+        
+        Ok(())
+    }
+
+    /// Run one-time startup deduplication for existing data.
+    /// This only runs once - on first startup after the dedup feature is added.
+    /// After running, it sets a flag so it won't run again.
+    fn run_startup_deduplication(&self) {
+        const SETTING_KEY: &str = "duplicate_checked";
+        
+        // Check if we've already run deduplication
+        match self.get_setting(SETTING_KEY) {
+            Ok(Some(value)) if value == "true" => {
+                log::debug!("Startup deduplication already completed, skipping");
+                return;
+            }
+            Ok(_) => {
+                // Not set or not "true", run deduplication
+            }
+            Err(e) => {
+                log::warn!("Failed to check dedup setting: {}, proceeding with deduplication", e);
+            }
+        }
+
+        log::info!("Running one-time startup deduplication for existing flights...");
+        
+        match self.deduplicate_flights() {
+            Ok(count) => {
+                if count > 0 {
+                    log::info!("Startup deduplication removed {} duplicate flights", count);
+                } else {
+                    log::info!("Startup deduplication complete, no duplicates found");
+                }
+            }
+            Err(e) => {
+                log::error!("Startup deduplication failed: {}", e);
+                // Don't set the flag if dedup failed - try again next startup
+                return;
+            }
+        }
+
+        // Mark deduplication as complete
+        if let Err(e) = self.set_setting(SETTING_KEY, "true") {
+            log::error!("Failed to save dedup completion flag: {}", e);
+        }
     }
 
     /// Export the entire database to a compressed backup file.
