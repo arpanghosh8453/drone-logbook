@@ -10,7 +10,7 @@
 
 <hr>
 
-<h1 align="center">Drone Logbook</h1>
+<h1 align="center">Open Drone Logbook</h1>
 
 
 <p align="center">A high-performance application for analyzing drone flight logs (DJI and Litchi CSV formats). Available as a Tauri v2 desktop app or a Docker-deployable web app. Built with DuckDB and React.</p>
