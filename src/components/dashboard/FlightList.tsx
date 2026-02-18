@@ -132,6 +132,10 @@ export function FlightList({
     getDisplaySerial,
     overviewHighlightedFlightId,
     setOverviewHighlightedFlightId,
+    addTag,
+    removeTag,
+    loadAllTags,
+    clearFlightDataCache,
   } =
     useFlightStore();
 
@@ -195,6 +199,13 @@ export function FlightList({
   const [exportProgress, setExportProgress] = useState({ done: 0, total: 0, currentFile: '' });
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState({ done: 0, total: 0, currentFile: '' });
+  const [confirmUntag, setConfirmUntag] = useState(false);
+  const [isUntagging, setIsUntagging] = useState(false);
+  const [untagProgress, setUntagProgress] = useState({ done: 0, total: 0 });
+  const [showBulkTagInput, setShowBulkTagInput] = useState(false);
+  const [bulkTagInput, setBulkTagInput] = useState('');
+  const [isBulkTagging, setIsBulkTagging] = useState(false);
+  const [bulkTagProgress, setBulkTagProgress] = useState({ done: 0, total: 0 });
   const dateButtonRef = useRef<HTMLButtonElement | null>(null);
   const sortButtonRef = useRef<HTMLButtonElement | null>(null);
   const sortDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -220,7 +231,7 @@ export function FlightList({
 
   // Prevent all scrolling when overlay is active
   useEffect(() => {
-    if (isExporting || isDeleting) {
+    if (isExporting || isDeleting || isUntagging || isBulkTagging) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
       // Add class to hide all scrollbars
@@ -231,7 +242,7 @@ export function FlightList({
         document.body.classList.remove('overlay-active');
       };
     }
-  }, [isExporting, isDeleting]);
+  }, [isExporting, isDeleting, isUntagging, isBulkTagging]);
 
   // Sync filtered flight IDs to the store so Overview can use them
   // Only sync after flights have loaded to avoid setting an empty Set prematurely
@@ -1194,6 +1205,86 @@ ${points}
     }
   };
 
+  // Handle bulk untag (remove selected tags from filtered flights)
+  const handleBulkUntag = async () => {
+    if (selectedTags.length === 0 || filteredFlights.length === 0) return;
+    
+    try {
+      setIsUntagging(true);
+      setConfirmUntag(false);
+      const tagsToRemove = [...selectedTags];
+      const flightsToProcess = filteredFlights.filter(f => 
+        f.tags?.some(t => tagsToRemove.includes(t.tag))
+      );
+      
+      if (flightsToProcess.length === 0) {
+        setIsUntagging(false);
+        return;
+      }
+      
+      setUntagProgress({ done: 0, total: flightsToProcess.length });
+
+      for (let i = 0; i < flightsToProcess.length; i++) {
+        const flight = flightsToProcess[i];
+        setUntagProgress({ done: i, total: flightsToProcess.length });
+        
+        // Remove each selected tag from this flight
+        for (const tag of tagsToRemove) {
+          if (flight.tags?.some(t => t.tag === tag)) {
+            await removeTag(flight.id, tag);
+          }
+        }
+      }
+
+      setUntagProgress({ done: flightsToProcess.length, total: flightsToProcess.length });
+      // Clear the tag filter since those tags may no longer exist
+      setSelectedTags([]);
+      // Refresh all tags list and clear cache so UI reflects changes
+      await loadAllTags();
+      clearFlightDataCache();
+      setTimeout(() => setIsUntagging(false), 500);
+    } catch (err) {
+      console.error('Untag failed:', err);
+      setIsUntagging(false);
+    }
+  };
+
+  // Handle bulk tag (add a tag to all filtered flights)
+  const handleBulkTag = async () => {
+    const tagToAdd = bulkTagInput.trim();
+    if (!tagToAdd || filteredFlights.length === 0) {
+      setShowBulkTagInput(false);
+      setBulkTagInput('');
+      return;
+    }
+    
+    try {
+      setIsBulkTagging(true);
+      setShowBulkTagInput(false);
+      setBulkTagProgress({ done: 0, total: filteredFlights.length });
+
+      for (let i = 0; i < filteredFlights.length; i++) {
+        const flight = filteredFlights[i];
+        setBulkTagProgress({ done: i, total: filteredFlights.length });
+        
+        // Only add if flight doesn't already have this tag
+        if (!flight.tags?.some(t => t.tag === tagToAdd)) {
+          await addTag(flight.id, tagToAdd);
+        }
+      }
+
+      setBulkTagProgress({ done: filteredFlights.length, total: filteredFlights.length });
+      setBulkTagInput('');
+      // Refresh all tags list and clear cache so UI reflects changes
+      await loadAllTags();
+      clearFlightDataCache();
+      setTimeout(() => setIsBulkTagging(false), 500);
+    } catch (err) {
+      console.error('Bulk tag failed:', err);
+      setIsBulkTagging(false);
+    }
+  };
+
   if (flights.length === 0) {
     return (
       <div className="p-4 text-center text-gray-500">
@@ -2029,6 +2120,117 @@ ${points}
           </div>
         )}
 
+        {/* Untag and Bulk Tag Buttons */}
+        <div className="flex items-center gap-2">
+          {/* Untag Filtered Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirmUntag(true);
+            }}
+            disabled={filteredFlights.length === 0 || selectedTags.length === 0}
+            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${
+              filteredFlights.length > 0 && selectedTags.length > 0
+                ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            Untag filtered
+          </button>
+
+          {/* Bulk Tag Filtered Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowBulkTagInput(true);
+            }}
+            disabled={filteredFlights.length === 0}
+            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${
+              filteredFlights.length > 0
+                ? 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30'
+                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            Bulk tag filtered
+          </button>
+        </div>
+
+        {/* Untag Confirmation */}
+        {confirmUntag && filteredFlights.length > 0 && selectedTags.length > 0 && (
+          <div 
+            className="flex items-center gap-2 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="text-gray-400">
+              Remove tag{selectedTags.length !== 1 ? 's' : ''} "{selectedTags.join(', ')}" from filtered flights?
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBulkUntag();
+              }}
+              className="text-xs text-orange-400 hover:text-orange-300"
+            >
+              Yes
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfirmUntag(false);
+              }}
+              className="text-xs text-gray-400 hover:text-gray-200"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Bulk Tag Input */}
+        {showBulkTagInput && filteredFlights.length > 0 && (
+          <div 
+            className="flex items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="text"
+              value={bulkTagInput}
+              onChange={(e) => setBulkTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleBulkTag();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setShowBulkTagInput(false);
+                  setBulkTagInput('');
+                }
+              }}
+              placeholder="Enter tag name..."
+              autoFocus
+              className="input flex-1 text-xs h-7 px-2"
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBulkTag();
+              }}
+              className="text-xs text-violet-400 hover:text-violet-300"
+            >
+              OK
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowBulkTagInput(false);
+                setBulkTagInput('');
+              }}
+              className="text-xs text-gray-400 hover:text-gray-200"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         </div>
         </div>
         {/* Search + sort — always visible */}
@@ -2333,7 +2535,50 @@ ${points}
             </div>
           </div>
         </div>
-      )}    </div>
+      )}
+
+      {/* Untag Progress Overlay */}
+      {isUntagging && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-drone-surface border border-gray-700 rounded-xl p-6 min-w-[320px] shadow-2xl">
+            <h3 className="text-lg font-semibold mb-4">Removing Tags</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm text-gray-400">
+                <span>Progress</span>
+                <span>{untagProgress.done} / {untagProgress.total}</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-orange-500 transition-all duration-300"
+                  style={{ width: `${untagProgress.total > 0 ? (untagProgress.done / untagProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Tag Progress Overlay */}
+      {isBulkTagging && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-drone-surface border border-gray-700 rounded-xl p-6 min-w-[320px] shadow-2xl">
+            <h3 className="text-lg font-semibold mb-4">Adding Tags</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm text-gray-400">
+                <span>Progress</span>
+                <span>{bulkTagProgress.done} / {bulkTagProgress.total}</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-violet-500 transition-all duration-300"
+                  style={{ width: `${bulkTagProgress.total > 0 ? (bulkTagProgress.done / bulkTagProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

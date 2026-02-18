@@ -62,6 +62,7 @@ interface FlightState {
   checkForUpdates: () => Promise<void>;
   clearSelection: () => void;
   clearError: () => void;
+  clearFlightDataCache: () => void;
 
   // Sidebar-filtered flight IDs (used by Overview to share sidebar filters)
   sidebarFilteredFlightIds: Set<number> | null;
@@ -754,4 +755,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
 
   // Clear error
   clearError: () => set({ error: null }),
+
+  // Clear flight data cache (forces refresh when viewing flights after bulk operations)
+  clearFlightDataCache: () => set({ _flightDataCache: new Map() }),
 }));
