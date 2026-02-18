@@ -564,10 +564,13 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     set({ isRegenerating: true, regenerationProgress: { processed: 0, total }, error: null });
     let errors = 0;
     const start = Date.now();
+    
+    // Get enabled tag types from localStorage
+    const enabledTagTypes = api.getEnabledSmartTagTypes();
 
     for (let i = 0; i < flights.length; i++) {
       try {
-        await api.regenerateFlightSmartTags(flights[i].id);
+        await api.regenerateFlightSmartTags(flights[i].id, enabledTagTypes);
       } catch {
         errors += 1;
       }

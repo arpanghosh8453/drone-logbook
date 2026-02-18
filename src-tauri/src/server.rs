@@ -158,17 +158,27 @@ async fn import_log(
 
     // Insert smart tags if the feature is enabled
     let config_path = state.db.data_dir.join("config.json");
-    let tags_enabled = if config_path.exists() {
+    let config: serde_json::Value = if config_path.exists() {
         std::fs::read_to_string(&config_path)
             .ok()
-            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|v| v.get("smart_tags_enabled").and_then(|v| v.as_bool()))
-            .unwrap_or(true)
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(serde_json::json!({}))
     } else {
-        true
+        serde_json::json!({})
     };
+    let tags_enabled = config.get("smart_tags_enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+    
     if tags_enabled {
-        if let Err(e) = state.db.insert_flight_tags(flight_id, &parse_result.tags) {
+        // Filter tags based on enabled_tag_types if configured
+        let tags = if let Some(types) = config.get("enabled_tag_types").and_then(|v| v.as_array()) {
+            let enabled_types: Vec<String> = types.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            crate::parser::LogParser::filter_smart_tags(parse_result.tags.clone(), &enabled_types)
+        } else {
+            parse_result.tags.clone()
+        };
+        if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
             log::warn!("Failed to insert tags for flight {}: {}", flight_id, e);
         }
     }
@@ -538,10 +548,68 @@ async fn set_smart_tags_enabled(
     Ok(Json(payload.enabled))
 }
 
+/// GET /api/settings/enabled_tag_types — Get enabled smart tag types
+async fn get_enabled_tag_types(
+    AxumState(state): AxumState<WebAppState>,
+) -> Result<Json<Vec<String>>, (StatusCode, Json<ErrorResponse>)> {
+    let config_path = state.db.data_dir.join("config.json");
+    if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path)
+            .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read config: {}", e)))?;
+        let val: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse config: {}", e)))?;
+        if let Some(types) = val.get("enabled_tag_types").and_then(|v| v.as_array()) {
+            return Ok(Json(types.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()));
+        }
+    }
+    // Default: return all tag types
+    Ok(Json(vec![
+        "night_flight".to_string(), "high_speed".to_string(), "cold_battery".to_string(),
+        "heavy_load".to_string(), "low_battery".to_string(), "high_altitude".to_string(),
+        "long_distance".to_string(), "long_flight".to_string(), "short_flight".to_string(),
+        "aggressive_flying".to_string(), "no_gps".to_string(), "country".to_string(),
+        "continent".to_string(),
+    ]))
+}
+
+/// Request body for setting enabled tag types
+#[derive(Deserialize)]
+struct EnabledTagTypesPayload {
+    types: Vec<String>,
+}
+
+/// POST /api/settings/enabled_tag_types — Set enabled smart tag types
+async fn set_enabled_tag_types(
+    AxumState(state): AxumState<WebAppState>,
+    Json(payload): Json<EnabledTagTypesPayload>,
+) -> Result<Json<Vec<String>>, (StatusCode, Json<ErrorResponse>)> {
+    let config_path = state.db.data_dir.join("config.json");
+    let mut config: serde_json::Value = if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    config["enabled_tag_types"] = serde_json::json!(payload.types.clone());
+    std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap())
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write config: {}", e)))?;
+    Ok(Json(payload.types))
+}
+
+/// Request body for regenerating smart tags with optional filter
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RegenerateTagsPayload {
+    enabled_tag_types: Option<Vec<String>>,
+}
+
 /// POST /api/regenerate_flight_smart_tags/:id — Regenerate auto tags for a single flight
 async fn regenerate_flight_smart_tags(
     AxumState(state): AxumState<WebAppState>,
     Path(flight_id): Path<i64>,
+    Json(payload): Json<RegenerateTagsPayload>,
 ) -> Result<Json<String>, (StatusCode, Json<ErrorResponse>)> {
     use crate::parser::{LogParser, calculate_stats_from_records};
 
@@ -577,7 +645,11 @@ async fn regenerate_flight_smart_tags(
     match state.db.get_flight_telemetry(flight_id, Some(50000), None) {
         Ok(records) if !records.is_empty() => {
             let stats = calculate_stats_from_records(&records);
-            let tags = LogParser::generate_smart_tags(&metadata, &stats);
+            let mut tags = LogParser::generate_smart_tags(&metadata, &stats);
+            // Filter tags if enabled_tag_types is provided
+            if let Some(ref types) = payload.enabled_tag_types {
+                tags = LogParser::filter_smart_tags(tags, types);
+            }
             state.db.replace_auto_tags(flight_id, &tags)
                 .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to replace tags: {}", e)))?;
         }
@@ -822,15 +894,15 @@ async fn sync_single_file(
 
     // Check smart tags setting
     let config_path = state.db.data_dir.join("config.json");
-    let tags_enabled = if config_path.exists() {
+    let config: serde_json::Value = if config_path.exists() {
         std::fs::read_to_string(&config_path)
             .ok()
-            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|v| v.get("smart_tags_enabled").and_then(|v| v.as_bool()))
-            .unwrap_or(true)
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(serde_json::json!({}))
     } else {
-        true
+        serde_json::json!({})
     };
+    let tags_enabled = config.get("smart_tags_enabled").and_then(|v| v.as_bool()).unwrap_or(true);
 
     let parser = LogParser::new(&state.db);
 
@@ -889,7 +961,16 @@ async fn sync_single_file(
 
     // Insert smart tags if enabled
     if tags_enabled {
-        if let Err(e) = state.db.insert_flight_tags(flight_id, &parse_result.tags) {
+        // Filter tags based on enabled_tag_types if configured
+        let tags = if let Some(types) = config.get("enabled_tag_types").and_then(|v| v.as_array()) {
+            let enabled_types: Vec<String> = types.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            crate::parser::LogParser::filter_smart_tags(parse_result.tags.clone(), &enabled_types)
+        } else {
+            parse_result.tags.clone()
+        };
+        if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
             log::warn!("Failed to insert tags: {}", e);
         }
     }
@@ -977,15 +1058,15 @@ async fn sync_from_folder(
 
     // Check smart tags setting
     let config_path = state.db.data_dir.join("config.json");
-    let tags_enabled = if config_path.exists() {
+    let config: serde_json::Value = if config_path.exists() {
         std::fs::read_to_string(&config_path)
             .ok()
-            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|v| v.get("smart_tags_enabled").and_then(|v| v.as_bool()))
-            .unwrap_or(true)
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(serde_json::json!({}))
     } else {
-        true
+        serde_json::json!({})
     };
+    let tags_enabled = config.get("smart_tags_enabled").and_then(|v| v.as_bool()).unwrap_or(true);
 
     for file_path in log_files {
         let file_name = file_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -1035,7 +1116,16 @@ async fn sync_from_folder(
 
         // Insert smart tags if enabled
         if tags_enabled {
-            if let Err(e) = state.db.insert_flight_tags(flight_id, &parse_result.tags) {
+            // Filter tags based on enabled_tag_types if configured
+            let tags = if let Some(types) = config.get("enabled_tag_types").and_then(|v| v.as_array()) {
+                let enabled_types: Vec<String> = types.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                crate::parser::LogParser::filter_smart_tags(parse_result.tags.clone(), &enabled_types)
+            } else {
+                parse_result.tags.clone()
+            };
+            if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
                 log::warn!("Failed to insert tags for {}: {}", file_name, e);
             }
         }
@@ -1087,6 +1177,8 @@ pub fn build_router(state: WebAppState) -> Router {
         .route("/api/tags/remove_auto", post(remove_all_auto_tags))
         .route("/api/settings/smart_tags", get(get_smart_tags_enabled))
         .route("/api/settings/smart_tags", post(set_smart_tags_enabled))
+        .route("/api/settings/enabled_tag_types", get(get_enabled_tag_types))
+        .route("/api/settings/enabled_tag_types", post(set_enabled_tag_types))
         .route("/api/regenerate_smart_tags", post(regenerate_smart_tags))
         .route("/api/regenerate_flight_smart_tags/:id", post(regenerate_flight_smart_tags))
         .route("/api/has_api_key", get(has_api_key))
@@ -1224,15 +1316,15 @@ async fn run_scheduled_sync(state: &WebAppState) -> Result<(usize, usize, usize)
     
     // Check smart tags setting
     let config_path = state.db.data_dir.join("config.json");
-    let tags_enabled = if config_path.exists() {
+    let config: serde_json::Value = if config_path.exists() {
         std::fs::read_to_string(&config_path)
             .ok()
-            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|v| v.get("smart_tags_enabled").and_then(|v| v.as_bool()))
-            .unwrap_or(true)
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(serde_json::json!({}))
     } else {
-        true
+        serde_json::json!({})
     };
+    let tags_enabled = config.get("smart_tags_enabled").and_then(|v| v.as_bool()).unwrap_or(true);
     
     for file_path in log_files {
         let file_name = file_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -1280,7 +1372,16 @@ async fn run_scheduled_sync(state: &WebAppState) -> Result<(usize, usize, usize)
         
         // Insert smart tags if enabled
         if tags_enabled {
-            if let Err(e) = state.db.insert_flight_tags(flight_id, &parse_result.tags) {
+            // Filter tags based on enabled_tag_types if configured
+            let tags = if let Some(types) = config.get("enabled_tag_types").and_then(|v| v.as_array()) {
+                let enabled_types: Vec<String> = types.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                crate::parser::LogParser::filter_smart_tags(parse_result.tags.clone(), &enabled_types)
+            } else {
+                parse_result.tags.clone()
+            };
+            if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
                 log::warn!("Scheduled sync: Failed to insert tags for {}: {}", file_name, e);
             }
         }

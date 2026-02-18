@@ -302,14 +302,97 @@ export async function removeAllAutoTags(): Promise<number> {
   return invoke('remove_all_auto_tags') as Promise<number>;
 }
 
-export async function regenerateFlightSmartTags(flightId: number): Promise<string> {
+export async function regenerateFlightSmartTags(flightId: number, enabledTagTypes?: string[]): Promise<string> {
   if (isWeb) {
     return fetchJson<string>(`/regenerate_flight_smart_tags/${flightId}`, {
       method: 'POST',
+      body: JSON.stringify({ enabledTagTypes }),
     });
   }
   const invoke = await getTauriInvoke();
-  return invoke('regenerate_flight_smart_tags', { flightId }) as Promise<string>;
+  return invoke('regenerate_flight_smart_tags', { flightId, enabledTagTypes }) as Promise<string>;
+}
+
+// ============================================================================
+// Smart Tag Types
+// ============================================================================
+
+/** All available smart tag types that can be enabled/disabled */
+export const SMART_TAG_TYPES = [
+  { id: 'night_flight', label: 'Night Flight', description: 'Flights starting after 7 PM or before 6 AM' },
+  { id: 'high_speed', label: 'High Speed', description: 'Max speed exceeds 15 m/s' },
+  { id: 'cold_battery', label: 'Cold Battery', description: 'Battery temp below 15°C at start' },
+  { id: 'heavy_load', label: 'Heavy Load', description: 'Battery consumption >75% in <20 min' },
+  { id: 'low_battery', label: 'Low Battery', description: 'Battery dropped below 15% at landing' },
+  { id: 'high_altitude', label: 'High Altitude', description: 'Max height above 120 meters' },
+  { id: 'long_distance', label: 'Long Distance', description: 'Max distance from home >1 km' },
+  { id: 'long_flight', label: 'Long Flight', description: 'Duration over 25 minutes' },
+  { id: 'short_flight', label: 'Short Flight', description: 'Duration under 2 minutes' },
+  { id: 'aggressive_flying', label: 'Aggressive Flying', description: 'Average speed over 8 m/s' },
+  { id: 'no_gps', label: 'No GPS', description: 'No GPS data available' },
+  { id: 'country', label: 'Country', description: 'Country based on takeoff location' },
+  { id: 'continent', label: 'Continent', description: 'Continent based on takeoff location' },
+] as const;
+
+export type SmartTagTypeId = typeof SMART_TAG_TYPES[number]['id'];
+
+/** Get all enabled smart tag types from localStorage */
+export function getEnabledSmartTagTypes(): SmartTagTypeId[] {
+  if (typeof localStorage === 'undefined') return SMART_TAG_TYPES.map(t => t.id);
+  const stored = localStorage.getItem('enabledSmartTagTypes');
+  if (!stored) return SMART_TAG_TYPES.map(t => t.id); // Default: all enabled
+  try {
+    const parsed = JSON.parse(stored);
+    // Validate that all stored values are valid tag type IDs
+    const validIds = SMART_TAG_TYPES.map(t => t.id);
+    return parsed.filter((id: string) => validIds.includes(id as SmartTagTypeId));
+  } catch {
+    return SMART_TAG_TYPES.map(t => t.id);
+  }
+}
+
+/** Set enabled smart tag types in localStorage and sync to backend */
+export async function setEnabledSmartTagTypes(types: SmartTagTypeId[]): Promise<void> {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('enabledSmartTagTypes', JSON.stringify(types));
+  }
+  // Also sync to backend config for import filtering
+  try {
+    if (isWeb) {
+      await fetchJson('/settings/enabled_tag_types', {
+        method: 'POST',
+        body: JSON.stringify({ types }),
+      });
+    } else {
+      const invoke = await getTauriInvoke();
+      await invoke('set_enabled_tag_types', { types });
+    }
+  } catch (e) {
+    console.warn('Failed to sync enabled tag types to backend:', e);
+  }
+}
+
+/** Load enabled smart tag types from backend (called on init) */
+export async function loadEnabledSmartTagTypes(): Promise<SmartTagTypeId[]> {
+  try {
+    let types: string[];
+    if (isWeb) {
+      types = await fetchJson<string[]>('/settings/enabled_tag_types');
+    } else {
+      const invoke = await getTauriInvoke();
+      types = await invoke('get_enabled_tag_types') as string[];
+    }
+    // Validate and store in localStorage
+    const validIds = SMART_TAG_TYPES.map(t => t.id);
+    const validTypes = types.filter((id) => validIds.includes(id as SmartTagTypeId)) as SmartTagTypeId[];
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('enabledSmartTagTypes', JSON.stringify(validTypes));
+    }
+    return validTypes;
+  } catch {
+    // If backend doesn't have the setting, use localStorage or default
+    return getEnabledSmartTagTypes();
+  }
 }
 
 // ============================================================================
@@ -391,7 +474,7 @@ export interface SyncFileResponse {
  */
 export async function getSyncConfig(): Promise<SyncConfig> {
   if (!isWeb) {
-    return { processed: 0, skipped: 0, errors: 0, message: 'Not in web mode', syncPath: null };
+    return { processed: 0, skipped: 0, errors: 0, message: 'Not in web mode', syncPath: null, autoSync: false };
   }
   return fetchJson<SyncConfig>('/sync/config');
 }
@@ -427,7 +510,7 @@ export async function syncSingleFile(filename: string): Promise<SyncFileResponse
  */
 export async function triggerSync(): Promise<SyncConfig> {
   if (!isWeb) {
-    return { processed: 0, skipped: 0, errors: 0, message: 'Not in web mode', syncPath: null };
+    return { processed: 0, skipped: 0, errors: 0, message: 'Not in web mode', syncPath: null, autoSync: false };
   }
   return fetchJson<SyncConfig>('/sync', { method: 'POST' });
 }

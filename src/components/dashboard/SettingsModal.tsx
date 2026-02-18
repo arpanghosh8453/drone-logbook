@@ -2,12 +2,13 @@
  * Settings modal for API key configuration
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { sha256 as jsSha256 } from 'js-sha256';
 import * as api from '@/lib/api';
 import { useFlightStore } from '@/stores/flightStore';
 import { Select } from '@/components/ui/Select';
 import { getBlacklist, clearBlacklist } from './FlightImporter';
+import { SMART_TAG_TYPES, getEnabledSmartTagTypes, setEnabledSmartTagTypes, SmartTagTypeId } from '@/lib/api';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -31,6 +32,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeduplicating, setIsDeduplicating] = useState(false);
   const [confirmRemoveAutoTags, setConfirmRemoveAutoTags] = useState(false);
+  const [enabledTagTypes, setEnabledTagTypes] = useState<SmartTagTypeId[]>(() => getEnabledSmartTagTypes());
+  const [isTagTypeDropdownOpen, setIsTagTypeDropdownOpen] = useState(false);
+  const [tagTypeSearch, setTagTypeSearch] = useState('');
+  const tagTypeDropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     unitSystem,
@@ -114,6 +119,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       loadSmartTagsEnabled();
       fetchAppVersion();
       setBlacklistCount(getBlacklist().size);
+      // Load enabled tag types from backend
+      api.loadEnabledSmartTagTypes().then(setEnabledTagTypes);
     }
   }, [isOpen]);
 
@@ -315,12 +322,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       <div className="relative bg-drone-secondary rounded-xl border border-gray-700 shadow-2xl w-full max-w-3xl mx-4 overflow-hidden">
         {/* Blocking overlay while a long-running operation is in progress */}
         {isBusy && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] rounded-xl">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-black/60 backdrop-blur-[2px] rounded-xl">
             <svg className="w-10 h-10 text-drone-primary animate-spin" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
               <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
             </svg>
-            <p className="mt-3 text-sm text-gray-300">
+            <p className="mt-3 text-sm font-semibold text-gray-800 dark:font-normal dark:text-gray-300">
               {isBackingUp && 'Exporting backup…'}
               {isRestoring && 'Restoring backup…'}
               {isDeleting && 'Deleting all logs…'}
@@ -330,7 +337,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <>
                   Regenerating smart tags…
                   {regenerationProgress && (
-                    <span className="block text-xs text-gray-400 mt-1">
+                    <span className="block text-xs font-normal text-gray-600 dark:text-gray-400 mt-1">
                       Processed {regenerationProgress.processed} of {regenerationProgress.total} flights
                     </span>
                   )}
@@ -446,6 +453,109 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <p className="text-xs text-gray-500 mt-1">
                 Automatically generate descriptive tags when importing flights.
               </p>
+
+              {/* Smart Tag Types Selector */}
+              {smartTagsEnabled && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-400 mb-1.5">Tag types to apply:</p>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsTagTypeDropdownOpen((v) => !v)}
+                      className="w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2 rounded-lg border border-gray-600 bg-drone-surface hover:border-gray-500 transition-colors"
+                    >
+                      <span className={`truncate ${enabledTagTypes.length < SMART_TAG_TYPES.length ? 'text-gray-100' : 'text-gray-400'}`}>
+                        {enabledTagTypes.length === SMART_TAG_TYPES.length 
+                          ? 'All tag types' 
+                          : enabledTagTypes.length === 0 
+                            ? 'None selected'
+                            : `${enabledTagTypes.length} of ${SMART_TAG_TYPES.length} selected`}
+                      </span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    {isTagTypeDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => { setIsTagTypeDropdownOpen(false); setTagTypeSearch(''); }}
+                        />
+                        <div
+                          ref={tagTypeDropdownRef}
+                          className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
+                        >
+                          {/* Search input */}
+                          <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
+                            <input
+                              type="text"
+                              value={tagTypeSearch}
+                              onChange={(e) => setTagTypeSearch(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setIsTagTypeDropdownOpen(false);
+                                  setTagTypeSearch('');
+                                }
+                              }}
+                              placeholder="Search tag types…"
+                              autoFocus
+                              className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
+                            />
+                          </div>
+                          <div className="overflow-y-scroll flex-1">
+                            {(() => {
+                              const filtered = SMART_TAG_TYPES.filter((t) => 
+                                t.label.toLowerCase().includes(tagTypeSearch.toLowerCase()) ||
+                                t.description.toLowerCase().includes(tagTypeSearch.toLowerCase())
+                              );
+                              if (filtered.length === 0) {
+                                return <p className="text-xs text-gray-500 px-3 py-2">No matching tag types</p>;
+                              }
+                              // Sort: selected first, then unselected
+                              const sorted = [...filtered].sort((a, b) => {
+                                const aSelected = enabledTagTypes.includes(a.id);
+                                const bSelected = enabledTagTypes.includes(b.id);
+                                if (aSelected && !bSelected) return -1;
+                                if (!aSelected && bSelected) return 1;
+                                return 0;
+                              });
+                              return sorted.map((tagType) => {
+                                const isSelected = enabledTagTypes.includes(tagType.id);
+                                return (
+                                  <button
+                                    key={tagType.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const newTypes = isSelected
+                                        ? enabledTagTypes.filter((t) => t !== tagType.id)
+                                        : [...enabledTagTypes, tagType.id];
+                                      setEnabledTagTypes(newTypes);
+                                      setEnabledSmartTagTypes(newTypes);
+                                    }}
+                                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
+                                      isSelected
+                                        ? 'bg-teal-500/20 text-gray-800 dark:text-teal-200'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                                    }`}
+                                  >
+                                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                                      isSelected ? 'border-teal-500 bg-teal-500' : 'border-gray-400 dark:border-gray-600'
+                                    }`}>
+                                      {isSelected && (
+                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                      )}
+                                    </span>
+                                    <span className="truncate">{tagType.label}</span>
+                                  </button>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"

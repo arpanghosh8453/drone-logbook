@@ -244,18 +244,28 @@ mod tauri_app {
         };
 
         // Insert smart tags if the feature is enabled
-        let smart_tags_enabled = state.db.data_dir.join("config.json");
-        let tags_enabled = if smart_tags_enabled.exists() {
-            std::fs::read_to_string(&smart_tags_enabled)
+        let config_path = state.db.data_dir.join("config.json");
+        let config: serde_json::Value = if config_path.exists() {
+            std::fs::read_to_string(&config_path)
                 .ok()
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                .and_then(|v| v.get("smart_tags_enabled").and_then(|v| v.as_bool()))
-                .unwrap_or(true)
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or(serde_json::json!({}))
         } else {
-            true
+            serde_json::json!({})
         };
+        let tags_enabled = config.get("smart_tags_enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+        
         if tags_enabled {
-            if let Err(e) = state.db.insert_flight_tags(flight_id, &parse_result.tags) {
+            // Filter tags based on enabled_tag_types if configured
+            let tags = if let Some(types) = config.get("enabled_tag_types").and_then(|v| v.as_array()) {
+                let enabled_types: Vec<String> = types.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                crate::parser::LogParser::filter_smart_tags(parse_result.tags.clone(), &enabled_types)
+            } else {
+                parse_result.tags.clone()
+            };
+            if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
                 log::warn!("Failed to insert tags for flight {}: {}", flight_id, e);
             }
         }
@@ -541,7 +551,50 @@ mod tauri_app {
     }
 
     #[tauri::command]
-    pub async fn regenerate_flight_smart_tags(state: State<'_, AppState>, flight_id: i64) -> Result<String, String> {
+    pub async fn get_enabled_tag_types(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+        let config_path = state.db.data_dir.join("config.json");
+        if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path)
+                .map_err(|e| format!("Failed to read config: {}", e))?;
+            let val: serde_json::Value = serde_json::from_str(&content)
+                .map_err(|e| format!("Failed to parse config: {}", e))?;
+            if let Some(types) = val.get("enabled_tag_types").and_then(|v| v.as_array()) {
+                return Ok(types.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect());
+            }
+        }
+        // Default: return all tag types
+        Ok(vec![
+            "night_flight".to_string(), "high_speed".to_string(), "cold_battery".to_string(),
+            "heavy_load".to_string(), "low_battery".to_string(), "high_altitude".to_string(),
+            "long_distance".to_string(), "long_flight".to_string(), "short_flight".to_string(),
+            "aggressive_flying".to_string(), "no_gps".to_string(), "country".to_string(),
+            "continent".to_string(),
+        ])
+    }
+
+    #[tauri::command]
+    pub async fn set_enabled_tag_types(types: Vec<String>, state: State<'_, AppState>) -> Result<Vec<String>, String> {
+        let config_path = state.db.data_dir.join("config.json");
+        let mut config: serde_json::Value = if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+        config["enabled_tag_types"] = serde_json::json!(types.clone());
+        std::fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap())
+            .map_err(|e| format!("Failed to write config: {}", e))?;
+        Ok(types)
+    }
+
+    #[tauri::command]
+    pub async fn regenerate_flight_smart_tags(
+        state: State<'_, AppState>,
+        flight_id: i64,
+        enabled_tag_types: Option<Vec<String>>,
+    ) -> Result<String, String> {
         use crate::parser::{LogParser, calculate_stats_from_records};
 
         let flight = state.db.get_flight_by_id(flight_id)
@@ -576,7 +629,11 @@ mod tauri_app {
         match state.db.get_flight_telemetry(flight_id, Some(50000), None) {
             Ok(records) if !records.is_empty() => {
                 let stats = calculate_stats_from_records(&records);
-                let tags = LogParser::generate_smart_tags(&metadata, &stats);
+                let mut tags = LogParser::generate_smart_tags(&metadata, &stats);
+                // Filter tags if enabled_tag_types is provided
+                if let Some(ref types) = enabled_tag_types {
+                    tags = LogParser::filter_smart_tags(tags, types);
+                }
                 state.db.replace_auto_tags(flight_id, &tags)
                     .map_err(|e| format!("Failed to replace tags for flight {}: {}", flight_id, e))?;
             }
@@ -718,6 +775,8 @@ mod tauri_app {
                 remove_all_auto_tags,
                 get_smart_tags_enabled,
                 set_smart_tags_enabled,
+                get_enabled_tag_types,
+                set_enabled_tag_types,
                 regenerate_flight_smart_tags,
                 regenerate_all_smart_tags,
             ])

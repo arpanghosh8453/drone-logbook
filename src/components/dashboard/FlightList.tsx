@@ -1591,11 +1591,11 @@ ${points}
                             onClick={() => setSelectedDrones((prev) => isSelected ? prev.filter((k) => k !== drone.key) : [...prev, drone.key])}
                             onMouseEnter={() => setDroneHighlightedIndex(index)}
                             className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                              isSelected ? 'bg-sky-500/20 text-sky-200' : 'text-gray-300 hover:bg-gray-700/50'
-                            } ${index === droneHighlightedIndex && !isSelected ? 'bg-gray-700/50' : ''}`}
+                              isSelected ? 'bg-sky-500/20 text-gray-800 dark:text-sky-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                            } ${index === droneHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
                           >
                             <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                              isSelected ? 'border-sky-500 bg-sky-500' : 'border-gray-600'
+                              isSelected ? 'border-sky-500 bg-sky-500' : 'border-gray-400 dark:border-gray-600'
                             }`}>
                               {isSelected && (
                                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -1682,11 +1682,11 @@ ${points}
                             onClick={() => setSelectedBatteries((prev) => isSelected ? prev.filter((k) => k !== bat.value) : [...prev, bat.value])}
                             onMouseEnter={() => setBatteryHighlightedIndex(index)}
                             className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                              isSelected ? 'bg-amber-500/20 text-amber-200' : 'text-gray-300 hover:bg-gray-700/50'
-                            } ${index === batteryHighlightedIndex && !isSelected ? 'bg-gray-700/50' : ''}`}
+                              isSelected ? 'bg-amber-500/20 text-gray-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                            } ${index === batteryHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
                           >
                             <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                              isSelected ? 'border-amber-500 bg-amber-500' : 'border-gray-600'
+                              isSelected ? 'border-amber-500 bg-amber-500' : 'border-gray-400 dark:border-gray-600'
                             }`}>
                               {isSelected && (
                                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -1810,12 +1810,12 @@ ${points}
                           onMouseEnter={() => setTagHighlightedIndex(index)}
                           className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
                             isSelected
-                              ? 'bg-violet-500/20 text-violet-200'
-                              : 'text-gray-300 hover:bg-gray-700/50'
-                          } ${index === tagHighlightedIndex && !isSelected ? 'bg-gray-700/50' : ''}`}
+                              ? 'bg-violet-500/20 text-gray-800 dark:text-violet-200'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                          } ${index === tagHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
                         >
                           <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                            isSelected ? 'border-violet-500 bg-violet-500' : 'border-gray-600'
+                            isSelected ? 'border-violet-500 bg-violet-500' : 'border-gray-400 dark:border-gray-600'
                           }`}>
                             {isSelected && (
                               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>

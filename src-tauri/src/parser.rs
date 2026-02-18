@@ -366,6 +366,64 @@ impl<'a> LogParser<'a> {
         tags
     }
 
+    /// Filter smart tags based on enabled tag type IDs.
+    /// Tag type IDs map to specific generated tag names.
+    pub fn filter_smart_tags(tags: Vec<String>, enabled_types: &[String]) -> Vec<String> {
+        // If no filter provided or empty, return all tags
+        if enabled_types.is_empty() {
+            return tags;
+        }
+
+        // Map of tag type IDs to the actual tag name patterns
+        let type_to_tag: std::collections::HashMap<&str, &str> = [
+            ("night_flight", "Night Flight"),
+            ("high_speed", "High Speed"),
+            ("cold_battery", "Cold Battery"),
+            ("heavy_load", "Heavy Load"),
+            ("low_battery", "Low Battery"),
+            ("high_altitude", "High Altitude"),
+            ("long_distance", "Long Distance"),
+            ("long_flight", "Long Flight"),
+            ("short_flight", "Short Flight"),
+            ("aggressive_flying", "Aggressive Flying"),
+            ("no_gps", "No GPS"),
+        ].into_iter().collect();
+
+        // Collect enabled tag names and check if location tags are enabled
+        let enabled_tag_names: std::collections::HashSet<&str> = enabled_types
+            .iter()
+            .filter_map(|t| type_to_tag.get(t.as_str()).copied())
+            .collect();
+        let country_enabled = enabled_types.iter().any(|t| t == "country");
+        let continent_enabled = enabled_types.iter().any(|t| t == "continent");
+
+        // List of all continents for filtering
+        let continents: std::collections::HashSet<&str> = [
+            "Africa", "Antarctica", "Asia", "Europe", 
+            "North America", "Oceania", "South America"
+        ].into_iter().collect();
+
+        tags.into_iter()
+            .filter(|tag| {
+                // Check if it's a standard tag type
+                if enabled_tag_names.contains(tag.as_str()) {
+                    return true;
+                }
+                // Check if it's a continent tag
+                if continents.contains(tag.as_str()) {
+                    return continent_enabled;
+                }
+                // Otherwise it's a country tag (any tag not matching above patterns)
+                // Note: Standard tags we know about are already handled above
+                let is_standard_tag = type_to_tag.values().any(|&v| v == tag.as_str());
+                if !is_standard_tag && !continents.contains(tag.as_str()) {
+                    return country_enabled;
+                }
+                false
+            })
+            .collect()
+    }
+
     /// Offline reverse geocoding using the `reverse_geocoder` crate.
     /// Returns location tags for country and continent only.
     /// Note: We skip the city/name field as GeoNames data often returns small towns,
