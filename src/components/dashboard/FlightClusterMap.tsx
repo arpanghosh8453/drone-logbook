@@ -490,14 +490,20 @@ export function FlightClusterMap({
   }
 
   return (
-    <div className={`card p-4 transition-all duration-300 ${mapAreaFilterEnabled ? 'ring-2 ring-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : ''}`}>
+    <div 
+      className={`card p-4 transition-all duration-300 resize-y overflow-hidden ${mapAreaFilterEnabled ? 'ring-2 ring-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : ''}`}
+      style={{ height: 480, minHeight: 480, maxHeight: 850 }}
+    >
       <h3 className="text-sm font-semibold mb-3">
         <span className="text-white">Flight Locations</span>
         {mapAreaFilterEnabled && (
           <span className="text-emerald-400 ml-1">— Global filter active</span>
         )}
       </h3>
-      <div className="relative rounded-lg overflow-hidden" style={{ height: 420 }}>
+      <div 
+        className="relative rounded-lg overflow-hidden" 
+        style={{ height: 'calc(100% - 32px)' }}
+      >
         <Map
           key={styleMode}
           ref={mapRef}

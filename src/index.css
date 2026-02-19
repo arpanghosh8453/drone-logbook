@@ -431,6 +431,19 @@ body.theme-light ::-webkit-scrollbar-thumb:hover {
            shadow-lg shadow-black/20;
   }
 
+  /* Resizable container styling */
+  .resize-y {
+    resize: vertical;
+  }
+  
+  .resize-y::-webkit-resizer {
+    background: linear-gradient(135deg, transparent 68%, rgba(156, 163, 175, 0.35) 68%);
+  }
+  
+  body.theme-light .resize-y::-webkit-resizer {
+    background: linear-gradient(135deg, transparent 68%, rgba(100, 116, 139, 0.45) 68%);
+  }
+
   .input {
     @apply bg-drone-dark border border-gray-600 rounded-lg px-4 py-2
            text-gray-100 placeholder-gray-500

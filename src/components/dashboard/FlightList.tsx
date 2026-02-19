@@ -14,7 +14,7 @@ import {
 import * as api from '@/lib/api';
 import { isWebMode, downloadFile, downloadBlob } from '@/lib/api';
 import { useFlightStore } from '@/stores/flightStore';
-import { formatDuration, formatDateTime, formatDistance } from '@/lib/utils';
+import { formatDuration, formatDateTime, formatDistance, formatAltitude } from '@/lib/utils';
 import { DayPicker, type DateRange } from 'react-day-picker';
 import type { FlightDataResponse, Flight, TelemetryData } from '@/types';
 import { addToBlacklist } from './FlightImporter';
@@ -2588,7 +2588,10 @@ ${points}
                 }}
                 title={[
                   flight.displayName || flight.fileName,
-                  formatDateTime(flight.startTime),
+                  `Start: ${formatDateTime(flight.startTime)}`,
+                  `Duration: ${formatDuration(flight.durationSecs)}`,
+                  `Distance: ${formatDistance(flight.totalDistance, unitSystem)}`,
+                  `Max Altitude: ${formatAltitude(flight.maxAltitude, unitSystem)}`,
                   flight.notes ? `Notes: ${flight.notes}` : null
                 ].filter(Boolean).join('\n')}
               >
@@ -2967,7 +2970,7 @@ ${points}
               value={notesInput}
               onChange={(e) => setNotesInput(e.target.value.slice(0, 500))}
               placeholder="Add a note for this flight..."
-              className="w-full h-32 px-3 py-2 rounded-lg bg-drone-surface border border-gray-700 text-gray-200 text-sm placeholder-gray-500 resize-none focus:outline-none focus:border-drone-primary"
+              className={`w-full h-32 px-3 py-2 rounded-lg bg-drone-surface border border-gray-700 text-sm placeholder-gray-500 resize-none focus:outline-none focus:border-drone-primary ${isLight ? 'text-gray-800' : 'text-gray-200'}`}
               autoFocus
             />
             <div className="flex items-center justify-between mt-2">
