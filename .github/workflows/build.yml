@@ -3,6 +3,7 @@ name: Build Tauri Binaries
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   build:
