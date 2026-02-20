@@ -7,7 +7,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Map, { NavigationControl, Marker } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import type { StyleSpecification } from 'maplibre-gl';
-import { PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { PathLayer, ScatterplotLayer, TextLayer, IconLayer } from '@deck.gl/layers';
 import DeckGL from '@deck.gl/react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { getTrackCenter, calculateBounds, formatAltitude, formatSpeed, formatDistance } from '@/lib/utils';
@@ -195,6 +195,13 @@ const COLOR_BY_OPTIONS: { value: ColorByMode; label: string }[] = [
   { value: 'distance', label: 'Dist. from Home' },
   { value: 'videoSegment', label: 'Video Segment' },
 ];
+
+// ─── Arrow icon for replay marker ───────────────────────────────────────────
+// SVG arrow pointing up (North), rendered as a data URL for IconLayer
+const ARROW_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <path d="M16 2 L26 28 L16 22 L6 28 Z" fill="#00d4aa" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+</svg>`;
+const ARROW_ICON_URL = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(ARROW_ICON_SVG)}`;
 
 /* ─── Directional arrow stick widget ────────────────────────────── */
 
@@ -507,38 +514,63 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
     if (!showAircraft || !replayMarkerPos || (!isPlaying && replayProgress === 0)) return [];
     const pos: [number, number, number] = [replayMarkerPos.lng, replayMarkerPos.lat, replayMarkerPos.alt];
 
+    // Interpolate yaw at current replay position
+    let yaw = 0;
+    if (telemetry?.yaw && telemetry.yaw.length > 0) {
+      const n = telemetry.yaw.length;
+      const idx = replayProgress * (n - 1);
+      const lo = Math.floor(idx);
+      const hi = Math.min(lo + 1, n - 1);
+      const frac = idx - lo;
+      const yawLo = telemetry.yaw[lo];
+      const yawHi = telemetry.yaw[hi];
+      if (yawLo !== null && yawHi !== null) {
+        // Handle angle wrap-around (e.g., 350° to 10°)
+        let diff = yawHi - yawLo;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        yaw = yawLo + diff * frac;
+      } else if (yawLo !== null) {
+        yaw = yawLo;
+      } else if (yawHi !== null) {
+        yaw = yawHi;
+      }
+    }
+
     return [
-      // Outer glow ring
+      // Outer glow ring (kept for visual effect)
       new ScatterplotLayer({
         id: 'replay-marker-glow',
         data: [{ position: pos }],
         getPosition: (d: { position: [number, number, number] }) => d.position,
-        getRadius: 14,
+        getRadius: 18,
         radiusUnits: 'pixels',
-        getFillColor: [0, 212, 170, 60],
+        getFillColor: [0, 212, 170, 50],
         stroked: false,
         filled: true,
         billboard: true,
         parameters: { depthTest: false },
       }),
-      // Main marker dot
-      new ScatterplotLayer({
-        id: 'replay-marker-dot',
-        data: [{ position: pos }],
+      // Arrow icon showing heading direction (fixed pixel size)
+      new IconLayer({
+        id: 'replay-marker-arrow',
+        data: [{ position: pos, angle: yaw }],
         getPosition: (d: { position: [number, number, number] }) => d.position,
-        getRadius: 7,
-        radiusUnits: 'pixels',
-        getFillColor: [0, 212, 170, 230],
-        getLineColor: [255, 255, 255, 255],
-        getLineWidth: 2,
-        lineWidthUnits: 'pixels',
-        stroked: true,
-        filled: true,
-        billboard: true,
+        getIcon: () => ({
+          url: ARROW_ICON_URL,
+          width: 32,
+          height: 32,
+          anchorY: 16,
+          anchorX: 16,
+        }),
+        getSize: 28,
+        sizeUnits: 'pixels',
+        getAngle: (d: { angle: number }) => -d.angle, // Negative because IconLayer rotates counter-clockwise
+        billboard: false,
         parameters: { depthTest: false },
       }),
     ];
-  }, [showAircraft, replayMarkerPos, isPlaying, replayProgress]);
+  }, [showAircraft, replayMarkerPos, isPlaying, replayProgress, telemetry?.yaw]);
 
   // Whether the replay is actively showing (playing or scrubbed away from 0)
   const replayActive = showAircraft && (isPlaying || replayProgress > 0);
