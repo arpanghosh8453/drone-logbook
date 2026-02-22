@@ -272,6 +272,13 @@ mod tauri_app {
             }
         }
 
+        // Insert manual tags from re-imported CSV exports (always inserted regardless of smart_tags_enabled)
+        for manual_tag in &parse_result.manual_tags {
+            if let Err(e) = state.db.add_flight_tag(flight_id, manual_tag) {
+                log::warn!("Failed to insert manual tag '{}' for flight {}: {}", manual_tag, flight_id, e);
+            }
+        }
+
         log::info!(
             "Successfully imported flight {} with {} points in {:.1}s",
             flight_id,

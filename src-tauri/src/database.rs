@@ -1392,27 +1392,52 @@ impl Database {
         battery_serial: Option<&str>,
         start_time: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Option<String>, DatabaseError> {
-        // If any key field is missing, we can't reliably check for duplicates
-        let (drone, battery, time) = match (drone_serial, battery_serial, start_time) {
-            (Some(d), Some(b), Some(t)) if !d.is_empty() && !b.is_empty() => (d, b, t),
+        // We need at least drone_serial and start_time to check for duplicates
+        let drone = match drone_serial {
+            Some(d) if !d.is_empty() => d,
             _ => return Ok(None),
+        };
+        let time = match start_time {
+            Some(t) => t,
+            None => return Ok(None),
         };
 
         let conn = self.conn.lock().unwrap();
 
-        // Check for existing flight with exact same signature (drone, battery, start_time)
-        let result: Option<String> = conn.query_row(
-            r#"
-            SELECT COALESCE(display_name, file_name) FROM flights 
-            WHERE drone_serial = ?
-              AND battery_serial = ?
-              AND start_time IS NOT NULL
-              AND start_time = ?::TIMESTAMPTZ
-            LIMIT 1
-            "#,
-            params![drone, battery, time.to_rfc3339()],
-            |row| row.get(0),
-        ).optional()?;
+        // Build query based on whether battery_serial is available
+        let result: Option<String> = match battery_serial {
+            Some(b) if !b.is_empty() => {
+                // Full check: drone + battery + start_time
+                conn.query_row(
+                    r#"
+                    SELECT COALESCE(display_name, file_name) FROM flights 
+                    WHERE drone_serial = ?
+                      AND battery_serial = ?
+                      AND start_time IS NOT NULL
+                      AND start_time = ?::TIMESTAMPTZ
+                    LIMIT 1
+                    "#,
+                    params![drone, b, time.to_rfc3339()],
+                    |row| row.get(0),
+                ).optional()?
+            }
+            _ => {
+                // Partial check: drone + start_time only (battery unknown)
+                // Also match flights that have NULL battery_serial
+                conn.query_row(
+                    r#"
+                    SELECT COALESCE(display_name, file_name) FROM flights 
+                    WHERE drone_serial = ?
+                      AND (battery_serial IS NULL OR battery_serial = '')
+                      AND start_time IS NOT NULL
+                      AND start_time = ?::TIMESTAMPTZ
+                    LIMIT 1
+                    "#,
+                    params![drone, time.to_rfc3339()],
+                    |row| row.get(0),
+                ).optional()?
+            }
+        };
 
         Ok(result)
     }

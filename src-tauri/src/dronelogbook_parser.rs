@@ -253,6 +253,8 @@ impl<'a> DroneLogbookParser<'a> {
         // Parse first data row to extract metadata JSON from metadata column
         let mut metadata_map: HashMap<String, String> = HashMap::new();
         let mut first_row_line: Option<String> = None;
+        let mut imported_auto_tags: Vec<String> = Vec::new();
+        let mut imported_manual_tags: Vec<String> = Vec::new();
 
         for line_result in lines.by_ref() {
             let line = match line_result {
@@ -276,6 +278,31 @@ impl<'a> DroneLogbookParser<'a> {
                             Ok(json_val) => {
                                 if let Some(obj) = json_val.as_object() {
                                     for (key, val) in obj {
+                                        // Handle tags array separately
+                                        if key == "tags" {
+                                            if let Some(tags_arr) = val.as_array() {
+                                                for tag_obj in tags_arr {
+                                                    if let Some(tag_map) = tag_obj.as_object() {
+                                                        let tag_name = tag_map.get("tag")
+                                                            .and_then(|v| v.as_str())
+                                                            .unwrap_or("");
+                                                        let tag_type = tag_map.get("tag_type")
+                                                            .and_then(|v| v.as_str())
+                                                            .unwrap_or("auto");
+                                                        if !tag_name.is_empty() {
+                                                            if tag_type == "manual" {
+                                                                imported_manual_tags.push(tag_name.to_string());
+                                                            } else {
+                                                                imported_auto_tags.push(tag_name.to_string());
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                log::info!("Parsed {} auto tags and {} manual tags from metadata", 
+                                                    imported_auto_tags.len(), imported_manual_tags.len());
+                                            }
+                                            continue;
+                                        }
                                         let val_str = match val {
                                             serde_json::Value::String(s) => s.clone(),
                                             serde_json::Value::Number(n) => n.to_string(),
@@ -554,11 +581,27 @@ impl<'a> DroneLogbookParser<'a> {
             start_battery_temp: points.first().and_then(|p| p.battery_temp),
         };
 
-        let mut tags = LogParser::generate_smart_tags(&metadata, &stats);
-        tags.insert(0, "Re-imported".to_string()); // Add tag at the beginning
-        log::info!("Generated smart tags: {:?}", tags);
+        // Start with "Re-imported" tag and merge with imported auto tags
+        let mut tags = vec!["Re-imported".to_string()];
+        
+        // Add imported auto tags (from the original export) - skip "Re-imported" to avoid duplicate
+        for tag in &imported_auto_tags {
+            if tag != "Re-imported" && !tags.contains(tag) {
+                tags.push(tag.clone());
+            }
+        }
+        
+        // Generate fresh smart tags and add any new ones not already present
+        let generated_tags = LogParser::generate_smart_tags(&metadata, &stats);
+        for tag in generated_tags {
+            if !tags.contains(&tag) {
+                tags.push(tag);
+            }
+        }
+        
+        log::info!("Final auto tags: {:?}, manual tags: {:?}", tags, imported_manual_tags);
 
-        Ok(ParseResult { metadata, points, tags })
+        Ok(ParseResult { metadata, points, tags, manual_tags: imported_manual_tags })
     }
 }
 

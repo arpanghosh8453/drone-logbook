@@ -111,7 +111,7 @@ export function FlightStats({ data }: FlightStatsProps) {
 
     // Build metadata JSON for the first row's metadata column
     const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown';
-    const metadata: Record<string, string | number | null> = {
+    const metadata: Record<string, string | number | null | Array<{tag: string, tag_type: string}>> = {
       format: 'Drone Logbook CSV Export',
       app_version: appVersion,
       exported_at: new Date().toISOString(),
@@ -128,6 +128,7 @@ export function FlightStats({ data }: FlightStatsProps) {
       home_lat: flight.homeLat ?? null,
       home_lon: flight.homeLon ?? null,
       notes: flight.notes ?? null,
+      tags: flight.tags?.map(t => ({ tag: t.tag, tag_type: t.tagType })) ?? null,
     };
     // Remove null values for cleaner JSON
     const cleanMetadata = Object.fromEntries(

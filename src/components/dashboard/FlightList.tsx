@@ -708,7 +708,7 @@ export function FlightList({
     
     // Build metadata JSON for the first row's metadata column
     const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown';
-    const metadata: Record<string, string | number | null> = {
+    const metadata: Record<string, string | number | null | Array<{tag: string, tag_type: string}>> = {
       format: 'Drone Logbook CSV Export',
       app_version: appVersion,
       exported_at: new Date().toISOString(),
@@ -725,6 +725,7 @@ export function FlightList({
       home_lat: flight.homeLat ?? null,
       home_lon: flight.homeLon ?? null,
       notes: flight.notes ?? null,
+      tags: flight.tags?.map(t => ({ tag: t.tag, tag_type: t.tagType })) ?? null,
     };
     // Remove null values for cleaner JSON
     const cleanMetadata = Object.fromEntries(
@@ -975,6 +976,7 @@ ${points}
       'Max Velocity (m/s)',
       'Takeoff Lat',
       'Takeoff Lon',
+      'Tags',
       'Notes',
     ];
 
@@ -1063,6 +1065,9 @@ ${points}
         ? getDroneDisplayNameFn(flight.droneSerial, fallbackName) 
         : fallbackName;
 
+      // Format tags as semicolon-separated string
+      const tagsStr = flight.tags?.map(t => t.tag).join('; ') || '';
+
       return [
         escapeCsv(aircraftName),
         escapeCsv(flight.droneSerial || ''),
@@ -1077,6 +1082,7 @@ ${points}
         escapeCsv(flight.maxSpeed != null ? flight.maxSpeed.toFixed(2) : ''),
         escapeCsv(takeoffLat != null ? takeoffLat.toFixed(7) : ''),
         escapeCsv(takeoffLon != null ? takeoffLon.toFixed(7) : ''),
+        escapeCsv(tagsStr),
         escapeCsv(flight.notes || ''),
       ].join(',');
     });

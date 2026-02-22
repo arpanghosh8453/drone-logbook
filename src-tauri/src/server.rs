@@ -183,6 +183,13 @@ async fn import_log(
         }
     }
 
+    // Insert manual tags from re-imported CSV exports (always inserted regardless of smart_tags_enabled)
+    for manual_tag in &parse_result.manual_tags {
+        if let Err(e) = state.db.add_flight_tag(flight_id, manual_tag) {
+            log::warn!("Failed to insert manual tag '{}' for flight {}: {}", manual_tag, flight_id, e);
+        }
+    }
+
     log::info!(
         "Successfully imported flight {} with {} points in {:.1}s",
         flight_id,
@@ -999,6 +1006,13 @@ async fn sync_single_file(
         }
     }
 
+    // Insert manual tags from re-imported CSV exports (always inserted regardless of smart_tags_enabled)
+    for manual_tag in &parse_result.manual_tags {
+        if let Err(e) = state.db.add_flight_tag(flight_id, manual_tag) {
+            log::warn!("Failed to insert manual tag '{}': {}", manual_tag, e);
+        }
+    }
+
     Ok(Json(SyncFileResponse {
         success: true,
         message: "OK".to_string(),
@@ -1151,6 +1165,13 @@ async fn sync_from_folder(
             };
             if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
                 log::warn!("Failed to insert tags for {}: {}", file_name, e);
+            }
+        }
+
+        // Insert manual tags from re-imported CSV exports (always inserted regardless of smart_tags_enabled)
+        for manual_tag in &parse_result.manual_tags {
+            if let Err(e) = state.db.add_flight_tag(flight_id, manual_tag) {
+                log::warn!("Failed to insert manual tag '{}' for {}: {}", manual_tag, file_name, e);
             }
         }
 
@@ -1408,6 +1429,13 @@ async fn run_scheduled_sync(state: &WebAppState) -> Result<(usize, usize, usize)
             };
             if let Err(e) = state.db.insert_flight_tags(flight_id, &tags) {
                 log::warn!("Scheduled sync: Failed to insert tags for {}: {}", file_name, e);
+            }
+        }
+
+        // Insert manual tags from re-imported CSV exports (always inserted regardless of smart_tags_enabled)
+        for manual_tag in &parse_result.manual_tags {
+            if let Err(e) = state.db.add_flight_tag(flight_id, manual_tag) {
+                log::warn!("Scheduled sync: Failed to insert manual tag '{}' for {}: {}", manual_tag, file_name, e);
             }
         }
         

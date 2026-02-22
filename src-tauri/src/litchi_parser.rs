@@ -234,7 +234,7 @@ impl<'a> LitchiParser<'a> {
         tags.insert(0, "Litchi".to_string()); // Add Litchi tag at the beginning
         log::info!("Generated smart tags: {:?}", tags);
 
-        Ok(ParseResult { metadata, points, tags })
+        Ok(ParseResult { metadata, points, tags, manual_tags: Vec::new() })
     }
 
     /// Parse a single CSV row into a TelemetryPoint
