@@ -413,4 +413,4 @@ While some parts of this codebase were written with AI assistance (Claude Opus) 
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=arpanghosh8453/dji-logbook&type=date&legend=top-left)](https://www.star-history.com/#arpanghosh8453/dji-logbook&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=arpanghosh8453/drone-logbook&type=date&legend=top-left)](https://www.star-history.com/#arpanghosh8453/drone-logbook&type=date&legend=top-left)
