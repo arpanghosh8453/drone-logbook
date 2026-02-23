@@ -324,7 +324,7 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
   const [hoverInfo, setHoverInfo] = useState<{
     x: number; y: number;
     height: number; speed: number; distance: number; progress: number;
-    lat: number; lng: number;
+    lat: number; lng: number; battery: number | null;
   } | null>(null);
   const { unitSystem, mapSyncEnabled, setMapReplayProgress } = useFlightStore();
   const mapRef = useRef<MapRef | null>(null);
@@ -769,10 +769,24 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
     const hLon = homeLon ?? smoothedTrack[0]?.[0] ?? 0;
     const distances: number[] = smoothedTrack.map((p) => haversineM(hLat, hLon, p[1], p[0]));
 
+    // Pre-compute battery values mapped to smoothed track
+    const batteryAtIndex: (number | null)[] = [];
+    const telemetryBattery = telemetry?.battery;
+    const telemetryLen = telemetryBattery?.length ?? 0;
+    for (let i = 0; i < n; i++) {
+      if (telemetryLen > 0 && telemetryBattery) {
+        const rawTrackIndex = Math.round((i / Math.max(1, n - 1)) * Math.max(1, rawN - 1));
+        const telemetryIndex = Math.round((rawTrackIndex / Math.max(1, rawN - 1)) * Math.max(1, telemetryLen - 1));
+        batteryAtIndex.push(telemetryBattery[telemetryIndex] ?? null);
+      } else {
+        batteryAtIndex.push(null);
+      }
+    }
+
     const segments: {
       path: [number, number, number][];
       color: [number, number, number];
-      meta: { height: number; speed: number; distance: number; progress: number; lat: number; lng: number };
+      meta: { height: number; speed: number; distance: number; progress: number; lat: number; lng: number; battery: number | null };
     }[] = [];
 
     for (let i = 0; i < n - 1; i++) {
@@ -805,6 +819,7 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
           progress: i / Math.max(1, n - 2),
           lat: lat1,
           lng: lng1,
+          battery: batteryAtIndex[i],
         },
       });
     }
@@ -1417,6 +1432,16 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
               <span className="text-gray-400">Dist. Home</span>
               <span className="font-medium text-white">{formatDistance(hoverInfo.distance, unitSystem)}</span>
             </div>
+            {hoverInfo.battery != null && (
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-400">Battery</span>
+                <span className={`font-medium ${
+                  hoverInfo.battery > 50 ? 'text-green-400' :
+                  hoverInfo.battery > 30 ? 'text-yellow-400' :
+                  hoverInfo.battery > 15 ? 'text-orange-400' : 'text-red-400'
+                }`}>{Math.round(hoverInfo.battery)}%</span>
+              </div>
+            )}
             <div className="border-t border-gray-700/60 mt-1 pt-1 flex justify-between gap-4">
               <span className="text-gray-500">Lat</span>
               <span className="text-gray-400">{hoverInfo.lat.toFixed(6)}</span>
