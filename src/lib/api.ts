@@ -631,6 +631,13 @@ export async function triggerSync(): Promise<SyncConfig> {
  * - Tauri: prompts user with a save dialog, backend writes the file directly.
  * - Web: downloads the backup file via the browser.
  */
+function getBackupFilename(): string {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  return `${timestamp}_Open_Dronelog.db.backup`;
+}
+
 export async function backupDatabase(): Promise<void> {
   if (isWeb) {
     // Web mode: download via fetch
@@ -640,14 +647,14 @@ export async function backupDatabase(): Promise<void> {
       throw new Error(body);
     }
     const blob = await response.blob();
-    downloadBlob('Drone_logbook.db.backup', blob);
+    downloadBlob(getBackupFilename(), blob);
     return;
   }
 
   // Tauri mode: use native save dialog
   const { save } = await import('@tauri-apps/plugin-dialog');
   const destPath = await save({
-    defaultPath: 'Drone_logbook.db.backup',
+    defaultPath: getBackupFilename(),
     filters: [{ name: 'Drone Logbook Backup', extensions: ['backup'] }],
   });
   if (!destPath) return; // user cancelled

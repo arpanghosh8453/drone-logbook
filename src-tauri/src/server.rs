@@ -581,10 +581,14 @@ async fn export_backup(
 
     let _ = tokio::fs::remove_file(&temp_path).await;
 
+    // Generate timestamped filename
+    let now = chrono::Local::now();
+    let filename = format!("{}_Open_Dronelog.db.backup", now.format("%Y-%m-%d_%H-%M-%S"));
+
     Ok((
         [
             (axum::http::header::CONTENT_TYPE, "application/octet-stream"),
-            (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"DJI_logbook.db.backup\""),
+            (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", filename).leak()),
         ],
         Body::from(file_bytes),
     ).into_response())
