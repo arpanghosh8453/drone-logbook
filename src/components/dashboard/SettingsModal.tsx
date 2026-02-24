@@ -266,8 +266,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setIsBackingUp(true);
     setMessage(null);
     try {
-      await api.backupDatabase();
-      setMessage({ type: 'success', text: 'Database backup exported successfully!' });
+      const success = await api.backupDatabase();
+      if (success) {
+        setMessage({ type: 'success', text: 'Database backup exported successfully!' });
+      }
+      // If not success, user cancelled - no message needed
     } catch (err) {
       setMessage({ type: 'error', text: `Backup failed: ${err}` });
     } finally {

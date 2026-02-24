@@ -638,7 +638,7 @@ function getBackupFilename(): string {
   return `${timestamp}_Open_Dronelog.db.backup`;
 }
 
-export async function backupDatabase(): Promise<void> {
+export async function backupDatabase(): Promise<boolean> {
   if (isWeb) {
     // Web mode: download via fetch
     const response = await fetch(`${API_BASE}/backup`);
@@ -648,7 +648,7 @@ export async function backupDatabase(): Promise<void> {
     }
     const blob = await response.blob();
     downloadBlob(getBackupFilename(), blob);
-    return;
+    return true;
   }
 
   // Tauri mode: use native save dialog
@@ -657,9 +657,10 @@ export async function backupDatabase(): Promise<void> {
     defaultPath: getBackupFilename(),
     filters: [{ name: 'Drone Logbook Backup', extensions: ['backup'] }],
   });
-  if (!destPath) return; // user cancelled
+  if (!destPath) return false; // user cancelled
   const invoke = await getTauriInvoke();
   await invoke('export_backup', { destPath });
+  return true;
 }
 
 /**
