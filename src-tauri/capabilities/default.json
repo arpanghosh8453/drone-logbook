@@ -48,6 +48,7 @@
     "fs:allow-app-read",
     "fs:allow-app-write",
     "fs:allow-app-meta",
-    "http:default"
+    "http:default",
+    "core:window:allow-close"
   ]
 }

@@ -57,20 +57,20 @@ function App() {
     if (isWebMode()) return;
 
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === 'q') {
+      if (e.ctrlKey && (e.key === 'q' || e.key === 'Q')) {
         e.preventDefault();
+        e.stopPropagation();
         try {
           const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const win = getCurrentWindow();
-          await win.close();
+          await getCurrentWindow().close();
         } catch (err) {
           console.error('Failed to close window:', err);
         }
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
   useEffect(() => {
