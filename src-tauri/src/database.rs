@@ -1758,6 +1758,7 @@ impl Database {
         let keychains_path = temp_dir.join("keychains.parquet");
         let tags_path = temp_dir.join("flight_tags.parquet");
         let messages_path = temp_dir.join("flight_messages.parquet");
+        let equipment_names_path = temp_dir.join("equipment_names.parquet");
 
         conn.execute_batch(&format!(
             "COPY flights    TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
@@ -1781,6 +1782,11 @@ impl Database {
             "COPY flight_messages TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
             messages_path.to_string_lossy()
         ));
+        // Export equipment_names table (ignore error if empty or doesn't exist)
+        let _ = conn.execute_batch(&format!(
+            "COPY equipment_names TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
+            equipment_names_path.to_string_lossy()
+        ));
 
         drop(conn); // release the lock while we tar
 
@@ -1789,7 +1795,7 @@ impl Database {
         let gz = flate2::write::GzEncoder::new(dest_file, flate2::Compression::fast());
         let mut tar = tar::Builder::new(gz);
 
-        for name in &["flights.parquet", "telemetry.parquet", "keychains.parquet", "flight_tags.parquet", "flight_messages.parquet"] {
+        for name in &["flights.parquet", "telemetry.parquet", "keychains.parquet", "flight_tags.parquet", "flight_messages.parquet", "equipment_names.parquet"] {
             let file_path = temp_dir.join(name);
             if file_path.exists() {
                 tar.append_path_with_name(&file_path, name)
@@ -1927,6 +1933,18 @@ impl Database {
                 "#,
                 messages_path.to_string_lossy(),
                 messages_path.to_string_lossy()
+            ));
+        }
+
+        // --- Restore equipment names (backward compatible — may not exist in old backups) ---
+        let equipment_names_path = temp_dir.join("equipment_names.parquet");
+        if equipment_names_path.exists() {
+            let _ = conn.execute_batch(&format!(
+                r#"
+                INSERT OR REPLACE INTO equipment_names
+                SELECT * FROM read_parquet('{}');
+                "#,
+                equipment_names_path.to_string_lossy()
             ));
         }
 
