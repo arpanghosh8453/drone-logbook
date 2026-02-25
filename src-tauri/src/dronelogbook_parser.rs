@@ -128,6 +128,16 @@ impl ColumnMap {
         }
         Some(val_str.to_string())
     }
+
+    /// Get a JSON array of f64 values by column name
+    fn get_f64_vec(&self, row: &[&str], field: &str) -> Option<Vec<f64>> {
+        let idx = *self.indices.get(&field.to_lowercase())?;
+        let val_str = row.get(idx)?.trim();
+        if val_str.is_empty() {
+            return None;
+        }
+        serde_json::from_str(val_str).ok()
+    }
 }
 
 /// Drone Logbook CSV Parser
@@ -483,6 +493,7 @@ impl<'a> DroneLogbookParser<'a> {
                 battery_voltage: col_map.get_f64(fields, "battery_voltage_v"),
                 battery_current: None, // Not in our CSV export
                 battery_temp: col_map.get_f64(fields, "battery_temp_c"),
+                cell_voltages: col_map.get_f64_vec(fields, "cell_voltages"),
 
                 // Status
                 flight_mode: col_map.get_str(fields, "flight_mode"),
@@ -512,7 +523,8 @@ impl<'a> DroneLogbookParser<'a> {
 
         // Process the first row (which we already read for metadata)
         if let Some(ref first_line) = first_row_line {
-            let fields: Vec<&str> = first_line.split(',').collect();
+            let fields_owned = Self::parse_csv_line(first_line);
+            let fields: Vec<&str> = fields_owned.iter().map(String::as_str).collect();
             if fields.len() >= headers.len() / 2 {
                 if let Some(point) = parse_row(&fields, &col_map, &mut first_valid_time_s, &mut last_valid_time_s, &mut prev_lat, &mut prev_lon, &mut home_lat, &mut home_lon, &mut max_speed, &mut max_altitude, &mut total_distance) {
                     points.push(point);
@@ -534,7 +546,8 @@ impl<'a> DroneLogbookParser<'a> {
                 continue;
             }
 
-            let fields: Vec<&str> = line.split(',').collect();
+            let fields_owned = Self::parse_csv_line(&line);
+            let fields: Vec<&str> = fields_owned.iter().map(String::as_str).collect();
             if fields.len() < headers.len() / 2 {
                 // Skip rows with too few fields
                 continue;

@@ -169,6 +169,10 @@ export function TelemetryCharts({ data, unitSystem, startTime }: TelemetryCharts
     () => createBatteryChart(data, splitLineColor, tooltipFormatter, tooltipColors),
     [data, splitLineColor, tooltipColors, tooltipFormatter]
   );
+  const cellVoltageOption = useMemo(
+    () => createCellVoltageChart(data, splitLineColor, tooltipFormatter, tooltipColors),
+    [data, splitLineColor, tooltipColors, tooltipFormatter]
+  );
   const attitudeOption = useMemo(
     () => createAttitudeChart(data, splitLineColor, tooltipFormatter, tooltipColors),
     [data, splitLineColor, tooltipColors, tooltipFormatter]
@@ -250,6 +254,19 @@ export function TelemetryCharts({ data, unitSystem, startTime }: TelemetryCharts
           onChartReady={registerChart}
         />
       </div>
+
+      {/* Cell Voltage Chart - only shown if cell voltage data exists */}
+      {cellVoltageOption && (
+        <div className="h-48">
+          <ReactECharts
+            option={cellVoltageOption}
+            style={{ height: '100%', width: '100%' }}
+            opts={{ renderer: 'canvas' }}
+            notMerge={true}
+            onChartReady={registerChart}
+          />
+        </div>
+      )}
 
       {/* Attitude Chart */}
       <div className="h-60">
@@ -730,6 +747,118 @@ function createBatteryChart(
         },
       },
     ],
+  };
+}
+
+// Colors for cell voltage series (up to 12 cells)
+const cellVoltageColors = [
+  '#10b981', // emerald-500
+  '#3b82f6', // blue-500
+  '#f59e0b', // amber-500
+  '#ef4444', // red-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#14b8a6', // teal-500
+  '#f97316', // orange-500
+  '#6366f1', // indigo-500
+  '#84cc16', // lime-500
+  '#06b6d4', // cyan-500
+  '#a855f7', // purple-500
+];
+
+function createCellVoltageChart(
+  data: TelemetryData,
+  splitLineColor: string,
+  tooltipFormatter: TooltipFormatter,
+  tooltipColors: TooltipColors
+): EChartsOption | null {
+  // Determine the number of cells from the first non-null entry
+  const cellVoltages = data.cellVoltages;
+  if (!cellVoltages || cellVoltages.length === 0) {
+    return null;
+  }
+
+  // Find first non-null entry to determine cell count
+  const firstValidEntry = cellVoltages.find((v) => v !== null && v !== undefined);
+  if (!firstValidEntry) {
+    return null;
+  }
+
+  const numCells = firstValidEntry.length;
+  if (numCells === 0) {
+    return null;
+  }
+
+  // Extract individual cell series
+  const cellSeries: (number | null)[][] = Array.from({ length: numCells }, () => []);
+  for (const voltages of cellVoltages) {
+    for (let i = 0; i < numCells; i++) {
+      if (voltages && voltages[i] !== undefined) {
+        cellSeries[i].push(voltages[i]);
+      } else {
+        cellSeries[i].push(null);
+      }
+    }
+  }
+
+  // Compute range across all cells
+  const allVoltages = cellSeries.flat().filter((v): v is number => v !== null);
+  const voltageRange = computeRange(allVoltages, { paddingRatio: 0.05 });
+
+  const legendData = Array.from({ length: numCells }, (_, i) => `Cell ${i + 1}`);
+
+  const series: LineSeriesOption[] = cellSeries.map((values, i) => ({
+    name: `Cell ${i + 1}`,
+    type: 'line',
+    data: values,
+    smooth: true,
+    symbol: 'none',
+    itemStyle: {
+      color: cellVoltageColors[i % cellVoltageColors.length],
+    },
+    lineStyle: {
+      color: cellVoltageColors[i % cellVoltageColors.length],
+      width: 1.5,
+    },
+  }));
+
+  return {
+    ...baseChartConfig,
+    tooltip: {
+      ...baseChartConfig.tooltip,
+      backgroundColor: tooltipColors.background,
+      borderColor: tooltipColors.border,
+      textStyle: { color: tooltipColors.text },
+      formatter: tooltipFormatter,
+    },
+    legend: {
+      ...baseChartConfig.legend,
+      data: legendData,
+    },
+    xAxis: {
+      ...createTimeAxis(data.time),
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Cell Voltage (V)',
+      min: voltageRange.min,
+      max: voltageRange.max,
+      axisLine: {
+        lineStyle: {
+          color: '#10b981',
+        },
+      },
+      axisLabel: {
+        color: '#9ca3af',
+        formatter: '{value}',
+      },
+      splitLine: {
+        lineStyle: {
+          color: splitLineColor,
+        },
+      },
+    },
+    series,
   };
 }
 

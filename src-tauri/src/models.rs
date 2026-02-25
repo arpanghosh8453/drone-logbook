@@ -95,6 +95,7 @@ pub struct TelemetryPoint {
     pub battery_voltage: Option<f64>,
     pub battery_current: Option<f64>,
     pub battery_temp: Option<f64>,
+    pub cell_voltages: Option<Vec<f64>>,
 
     // Status
     pub flight_mode: Option<String>,
@@ -132,6 +133,7 @@ pub struct TelemetryRecord {
     pub battery_percent: Option<i32>,
     pub battery_voltage: Option<f64>,
     pub battery_temp: Option<f64>,
+    pub cell_voltages: Option<Vec<f64>>,
     pub pitch: Option<f64>,
     pub roll: Option<f64>,
     pub yaw: Option<f64>,
@@ -275,6 +277,8 @@ pub struct TelemetryData {
     pub battery_voltage: Vec<Option<f64>>,
     /// Battery temperature series
     pub battery_temp: Vec<Option<f64>>,
+    /// Individual cell voltages series (JSON arrays stored as Vec)
+    pub cell_voltages: Vec<Option<Vec<f64>>>,
     /// Number of GPS satellites
     pub satellites: Vec<Option<i32>>,
     /// RC signal strength
@@ -327,6 +331,7 @@ impl TelemetryData {
         let mut battery = Vec::with_capacity(n);
         let mut battery_voltage = Vec::with_capacity(n);
         let mut battery_temp = Vec::with_capacity(n);
+        let mut cell_voltages = Vec::with_capacity(n);
         let mut satellites = Vec::with_capacity(n);
         let mut rc_signal = Vec::with_capacity(n);
         let mut rc_uplink = Vec::with_capacity(n);
@@ -356,6 +361,7 @@ impl TelemetryData {
             battery.push(r.battery_percent);
             battery_voltage.push(r.battery_voltage);
             battery_temp.push(r.battery_temp);
+            cell_voltages.push(r.cell_voltages.clone());
             satellites.push(r.satellites);
             rc_signal.push(r.rc_signal);
             rc_uplink.push(r.rc_uplink);
@@ -386,6 +392,7 @@ impl TelemetryData {
             battery,
             battery_voltage,
             battery_temp,
+            cell_voltages,
             satellites,
             rc_signal,
             rc_uplink,

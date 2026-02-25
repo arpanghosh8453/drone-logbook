@@ -307,6 +307,7 @@ impl<'a> LitchiParser<'a> {
             battery_voltage: col_map.get_f64(row, "voltage").or(col_map.get_f64(row, "currentVoltage")),
             battery_current: col_map.get_f64(row, "currentCurrent"),
             battery_temp: col_map.get_f64(row, "batteryTemperature").or(col_map.get_f64(row, "temperature")),
+            cell_voltages: None, // Litchi CSV doesn't include cell voltages
 
             // Status
             flight_mode: col_map.get_str(row, "flightmode"),

@@ -775,6 +775,12 @@ impl<'a> LogParser<'a> {
             point.battery_voltage = Some(battery.voltage as f64);
             point.battery_current = Some(battery.current as f64);
             point.battery_temp = Some(battery.temperature as f64);
+            // Extract individual cell voltages if available
+            point.cell_voltages = if !battery.cell_voltages.is_empty() {
+                Some(battery.cell_voltages.iter().map(|v| *v as f64).collect())
+            } else {
+                None
+            };
 
             point.rc_uplink = rc.uplink_signal.map(i32::from);
             point.rc_downlink = rc.downlink_signal.map(i32::from);

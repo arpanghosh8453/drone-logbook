@@ -47,6 +47,8 @@ export interface TelemetryData {
   battery: (number | null)[];
   batteryVoltage: (number | null)[];
   batteryTemp: (number | null)[];
+  /** Individual cell voltages per telemetry point (array of voltages) */
+  cellVoltages?: (number[] | null)[];
   satellites: (number | null)[];
   rcSignal: (number | null)[];
   rcUplink?: (number | null)[];

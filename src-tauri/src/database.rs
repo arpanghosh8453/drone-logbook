@@ -211,6 +211,7 @@ impl Database {
                 battery_voltage DOUBLE,
                 battery_current DOUBLE,
                 battery_temp    DOUBLE,
+                cell_voltages   VARCHAR,                 -- JSON array of individual cell voltages
                 
                 -- Flight status
                 flight_mode     VARCHAR,
@@ -355,6 +356,7 @@ impl Database {
             ("rc_rudder", "ALTER TABLE telemetry ADD COLUMN rc_rudder DOUBLE"),
             ("is_photo", "ALTER TABLE telemetry ADD COLUMN is_photo BOOLEAN"),
             ("is_video", "ALTER TABLE telemetry ADD COLUMN is_video BOOLEAN"),
+            ("cell_voltages", "ALTER TABLE telemetry ADD COLUMN cell_voltages VARCHAR"),
         ];
 
         for (col_name, sql) in migrations {
@@ -413,6 +415,7 @@ impl Database {
             "battery_voltage",
             "battery_current",
             "battery_temp",
+            "cell_voltages",
             "flight_mode",
             "gps_signal",
             "satellites",
@@ -540,6 +543,10 @@ impl Database {
                 skipped += 1;
                 continue;
             }
+            // Serialize cell_voltages to JSON string for storage
+            let cell_voltages_json: Option<String> = point.cell_voltages.as_ref().map(|v| {
+                serde_json::to_string(v).unwrap_or_else(|_| "[]".to_string())
+            });
             match appender.append_row(params![
                 flight_id,
                 point.timestamp_ms,
@@ -563,6 +570,7 @@ impl Database {
                 point.battery_voltage,
                 point.battery_current,
                 point.battery_temp,
+                cell_voltages_json.as_deref(),
                 point.flight_mode.as_deref(),
                 point.gps_signal,
                 point.satellites,
@@ -818,6 +826,7 @@ impl Database {
                 battery_percent,
                 battery_voltage,
                 battery_temp,
+                cell_voltages,
                 pitch,
                 roll,
                 yaw,
@@ -840,6 +849,12 @@ impl Database {
 
         let records = stmt
             .query_map(params![flight_id], |row| {
+                // Parse cell_voltages from JSON string
+                let cell_voltages_json: Option<String> = row.get(13)?;
+                let cell_voltages = cell_voltages_json.and_then(|s| {
+                    serde_json::from_str::<Vec<f64>>(&s).ok()
+                });
+                
                 Ok(TelemetryRecord {
                     timestamp_ms: row.get(0)?,
                     latitude: row.get(1)?,
@@ -854,20 +869,21 @@ impl Database {
                     battery_percent: row.get(10)?,
                     battery_voltage: row.get(11)?,
                     battery_temp: row.get(12)?,
-                    pitch: row.get(13)?,
-                    roll: row.get(14)?,
-                    yaw: row.get(15)?,
-                    satellites: row.get(16)?,
-                    flight_mode: row.get(17)?,
-                    rc_signal: row.get(18)?,
-                    rc_uplink: row.get(19)?,
-                    rc_downlink: row.get(20)?,
-                    rc_aileron: row.get(21)?,
-                    rc_elevator: row.get(22)?,
-                    rc_throttle: row.get(23)?,
-                    rc_rudder: row.get(24)?,
-                    is_photo: row.get(25)?,
-                    is_video: row.get(26)?,
+                    cell_voltages,
+                    pitch: row.get(14)?,
+                    roll: row.get(15)?,
+                    yaw: row.get(16)?,
+                    satellites: row.get(17)?,
+                    flight_mode: row.get(18)?,
+                    rc_signal: row.get(19)?,
+                    rc_uplink: row.get(20)?,
+                    rc_downlink: row.get(21)?,
+                    rc_aileron: row.get(22)?,
+                    rc_elevator: row.get(23)?,
+                    rc_throttle: row.get(24)?,
+                    rc_rudder: row.get(25)?,
+                    is_photo: row.get(26)?,
+                    is_video: row.get(27)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -911,6 +927,7 @@ impl Database {
                     AVG(battery_percent)::INTEGER AS battery_percent,
                     AVG(battery_voltage) AS battery_voltage,
                     AVG(battery_temp) AS battery_temp,
+                    FIRST(cell_voltages ORDER BY timestamp_ms) AS cell_voltages,
                     AVG(pitch) AS pitch,
                     AVG(roll) AS roll,
                     AVG(yaw) AS yaw,
@@ -936,6 +953,12 @@ impl Database {
 
         let records = stmt
             .query_map(params![bucket_size_ms, bucket_size_ms, flight_id], |row| {
+                // Parse cell_voltages from JSON string
+                let cell_voltages_json: Option<String> = row.get(13)?;
+                let cell_voltages = cell_voltages_json.and_then(|s| {
+                    serde_json::from_str::<Vec<f64>>(&s).ok()
+                });
+                
                 Ok(TelemetryRecord {
                     timestamp_ms: row.get(0)?,
                     latitude: row.get(1)?,
@@ -950,20 +973,21 @@ impl Database {
                     battery_percent: row.get(10)?,
                     battery_voltage: row.get(11)?,
                     battery_temp: row.get(12)?,
-                    pitch: row.get(13)?,
-                    roll: row.get(14)?,
-                    yaw: row.get(15)?,
-                    satellites: row.get(16)?,
-                    flight_mode: row.get(17)?,
-                    rc_signal: row.get(18)?,
-                    rc_uplink: row.get(19)?,
-                    rc_downlink: row.get(20)?,
-                    rc_aileron: row.get(21)?,
-                    rc_elevator: row.get(22)?,
-                    rc_throttle: row.get(23)?,
-                    rc_rudder: row.get(24)?,
-                    is_photo: row.get(25)?,
-                    is_video: row.get(26)?,
+                    cell_voltages,
+                    pitch: row.get(14)?,
+                    roll: row.get(15)?,
+                    yaw: row.get(16)?,
+                    satellites: row.get(17)?,
+                    flight_mode: row.get(18)?,
+                    rc_signal: row.get(19)?,
+                    rc_uplink: row.get(20)?,
+                    rc_downlink: row.get(21)?,
+                    rc_aileron: row.get(22)?,
+                    rc_elevator: row.get(23)?,
+                    rc_throttle: row.get(24)?,
+                    rc_rudder: row.get(25)?,
+                    is_photo: row.get(26)?,
+                    is_video: row.get(27)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
