@@ -444,7 +444,7 @@ export function ManualEntryModal({ isOpen, onClose }: ManualEntryModalProps) {
                 }`}
               />
               {errors.time && <p className="mt-1 text-xs text-red-400">{errors.time}</p>}
-              <p className="mt-1 text-xs text-gray-500">12h format (local time)</p>
+              <p className="mt-1 text-xs text-gray-500">24h format (local time)</p>
             </div>
           </div>
 

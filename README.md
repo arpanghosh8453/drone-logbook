@@ -263,9 +263,9 @@ When `KEEP_UPLOADED_FILES=true` is set, original log files are preserved in an `
 |-----------------|------------------------|-----------------------------------------------------------------------------|
 | `DATA_DIR`      | `/data/drone-logbook`  | Database and config storage                                                 |
 | `RUST_LOG`      | `info`                 | Log level (debug, info, warn)                                               |
-| `SYNC_LOGS_PATH`| (not set)              | Path to mounted folder for automatic log import (e.g., `/sync-logs`)        |
+| `SYNC_LOGS_PATH`| (not set)              | Path to internal folder for automatic log import (e.g., `/sync-logs`)        |
 | `SYNC_INTERVAL` | (not set)              | Cron expression for scheduled sync (e.g., `0 0 */8 * * *` for every 8 hours)|
-| `KEEP_UPLOADED_FILES` | (not set)       | When `true`, keeps copies of uploaded log files in the `uploaded` folder    |
+| `KEEP_UPLOADED_FILES` | `true`      | When `true`, keeps copies of uploaded log files in the `uploaded` folder    |
 
 ### Automatic log sync (Docker)
 
@@ -302,14 +302,18 @@ The sync status and a manual "Sync" button will appear in the Import section whe
 
 ### Keep uploaded files (Docker)
 
-To retain copies of uploaded log files in Docker, enable the `KEEP_UPLOADED_FILES` environment variable:
+To retain copies of uploaded log files in Docker, enable the `KEEP_UPLOADED_FILES` environment variable (`true` by default):
 
-Uploaded files are stored in `/data/drone-logbook/uploaded` inside the container (part of the `drone-data` volume). You can adjust the external mount volume to have direct access. 
+Uploaded files are stored in `/data/drone-logbook/uploaded` inside the container (part of the `drone-data` volume). You can adjust the external mount volume to have direct access.
+
+> [!TIP]
+> You can set the external host path same for both `/sync-logs` and `/data/drone-logbook/uploaded` to unify the log file collection. Make sure to remove the `:ro` part from the `/sync-logs` mount. I do it myself for convinience, but we recommend our users to keep them separate to make sure you accidentally don't lose any log files from the sync folder due to overwrite or any issue with the application. 
 
 
 ## Configuration
 
 - **DJI API Key**: Stored locally in `config.json`. You can also provide it via `.env` or via the `settings` menu inside the application. The standalone app ships with a default key, but users should enter their own to avoid rate limits for log file decryption key fetching.
+- **Sync folder**: Set and use the `sync folder` (application interface for Desktop and ENV variable for docker) for seamless log file import and re-import with de-duplication. The files uploaded through drag and drop or browse are also collected by default in the `Uploaded` folder of application storage (customizable via settings options for Desktop and ENV variable for docker). You can use a common folder (essentially unifying the raw log files storage location), but that is not generally recommended to prevent any mishaps or file overwrites.  
 - **Database Location**: Stored in the platform-specific app data directory (e.g., AppData on Windows, Application Support on macOS, and local share on Linux). In Docker mode, data is stored in `/data/drone-logbook` (persisted via a Docker volume).
 - **Log Files**: App logs are written to the platform-specific log directory and surfaced in Settings. In Docker mode, logs are written to stdout.
 
