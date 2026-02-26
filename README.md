@@ -22,7 +22,7 @@
 <p align="center">A high-performance application for analyzing drone flight logs (DJI and Litchi CSV formats). Available as a Tauri v2 desktop app or a Docker-deployable web app. Built with DuckDB and React.</p>
 
 > [!IMPORTANT]
-> *DJI is a registered trademark of SZ DJI Technology Co., Ltd. DroneLogbook® is a registered trademark of DroneAnalytics Inc. Litchi is a trademark of VC Technology Ltd. This project is independent and is not affiliated with, sponsored by, authorized by, or endorsed by SZ DJI Technology Co., Ltd., DroneAnalytics Inc., VC Technology Ltd., or their affiliates.*
+> *DJI is a registered trademark of SZ DJI Technology Co., Ltd. DroneLogbook® is a registered trademark of DroneAnalytics Inc. Litchi is a trademark of VC Technology Ltd. Airdata or Airdata UAV is a trademark of Airdata UAV, Inc. This project is independent and is not affiliated with, sponsored by, authorized by, or endorsed by SZ DJI Technology Co., Ltd., DroneAnalytics Inc., VC Technology Ltd., Airdata UAV, Inc., or their affiliates.*
 
 <p align="center">
     <img src="screenshots/Comparison.png" alt="Comparison chart" width="900" />
@@ -115,8 +115,19 @@ You can find more details resources from this simple [google search](https://www
 
 ### Litchi CSV Exports
 
-Litchi flight logs can be exported as CSV files from the Litchi app. The parser automatically detects whether the export uses metric or imperial units based on the column headers (e.g., `altitude(feet)` vs `altitude(m)`) and converts everything to metric internally. Litchi-imported flights are automatically tagged with "Litchi" for easy filtering.
+Litchi flight logs can be exported as CSV files from the Litchi app.  Litchi-imported flights are automatically tagged with "Litchi" for easy filtering.
 
+### Airdata Exports
+
+If you use Airdata to sync your flight logs, you can export the original DJI log files directly from the Airdata website:
+
+1. Go to your [Airdata flight logs](https://app.airdata.com/) and click on `my account`
+2. In the left sidebar, under `My Data` secction, pick `Download my data`
+3. Click **Request Export** and wait for their email with zip containing the `.txt` files
+
+![Airdata Export Guide](screenshots/Airdata_Export_Guide.png)
+
+These exported log files can then be imported directly into Open DroneLog.
 ## Setup and installation (Windows/MacOS)
 
 There is no installation step if you want to use the standalone binary builds, just visit the latest [release page](https://github.com/arpanghosh8453/open-dronelog/releases), and download the appropriate binary for Windows or MacOS and run them.

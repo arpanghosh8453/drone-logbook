@@ -783,6 +783,7 @@ Options to support the project and activate a supporter badge.
 |----------|--------|
 | **Up / Down Arrow** | Navigate through flight list |
 | **Enter** | Select highlighted flight |
+| **Ctrl + Click** | Jump to flight details (works in both Overview and Flights mode) |
 | **Escape** | Close modals, cancel editing |
 
 ### Dropdown Navigation
