@@ -790,10 +790,11 @@ function createCellVoltageChart(
   }
 
   // Extract individual cell series
+  // Treat 0 values as missing (0.0 indicates unparsed/unavailable data)
   const cellSeries: (number | null)[][] = Array.from({ length: numCells }, () => []);
   for (const voltages of cellVoltages) {
     for (let i = 0; i < numCells; i++) {
-      if (voltages && voltages[i] !== undefined) {
+      if (voltages && voltages[i] !== undefined && voltages[i] !== null && voltages[i] !== 0) {
         cellSeries[i].push(voltages[i]);
       } else {
         cellSeries[i].push(null);
@@ -801,7 +802,7 @@ function createCellVoltageChart(
     }
   }
 
-  // Compute range across all cells
+  // Compute range across all cells (excluding nulls which already excludes zeros)
   const allVoltages = cellSeries.flat().filter((v): v is number => v !== null);
   const voltageRange = computeRange(allVoltages, { paddingRatio: 0.05 });
 
