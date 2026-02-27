@@ -102,7 +102,7 @@
       "Charts: height/VPS/speed (metric in km/h), battery, attitude, RC signal, GPS satellites.",
       "Charts: RC uplink/downlink, distance-to-home, velocity XYZ panels, and cell voltages (dynamic legend per cell).",
       "Charts: synchronized zoom, drag-to-zoom toggle, reset zoom, auto-scaled Y axes, aligned X-axis ticks, custom tooltip header with pills.",
-      "Charts: Dynamic configuration via gear icon - select which fields to display per chart category, reorder charts, settings persisted to localStorage.",
+      "Charts: Dynamic configuration via per-chart multi-select dropdown (max 4 fields, searchable, checkboxes, selected-first sorting) — select which telemetry fields to display per chart panel, reset to defaults button, settings persisted to localStorage.",
       "Map: 3D terrain view via MapLibre, global theme styling.",
       "Map: satellite style toggle, gradient flight path with start/end markers.",
       "Map: deck.gl 3D path overlay; map toggles persist in session.",
@@ -612,7 +612,11 @@
   "ci_cd": {
     "build_yml": {
       "trigger": "on release published",
-      "platforms": ["ubuntu-latest", "windows-latest", "macos-latest"],
+      "platforms": [
+        "ubuntu-latest",
+        "windows-latest",
+        "macos-latest"
+      ],
       "action": "tauri-apps/tauri-action@v0",
       "artifacts": "Desktop binaries uploaded to GitHub Release"
     },
@@ -628,7 +632,7 @@
     "filters": "Flight list uses date range popover (react-day-picker), drone and battery selects (searchable via type-to-filter), dual-thumb duration slider, and multi-select tag filter. Filter inversion button (circular arrows) individually negates each active filter (AND logic: NOT A AND NOT B). Collapsible filter/import panels persisted to localStorage. Overview shares sidebar filters via store. Selection auto-clears when selected flight is no longer in filtered results.",
     "keyboard_navigation": "FlightList: Up/Down arrows browse flights (preview highlight), Enter selects and loads. All modals close on Escape. Select/sort/export/tag dropdowns support arrow key navigation with highlighted index.",
     "flight_list": "Simple compact list with always-visible rename (pencil icon, sky-400) and delete (trash icon, red-400) icons. Subtitle shows date . duration . distance.",
-    "charts": "ECharts with synced zoom; global drag-to-zoom toggle + reset zoom buttons; tooltip header uses pill capsules. Theme-aware base config. Hidden per-chart toolbox enables selection highlight for drag-to-zoom. Configurable chart fields via gear icon modal - users select which telemetry fields to display per chart category; settings persisted to localStorage.",
+    "charts": "ECharts with synced zoom; global drag-to-zoom toggle + reset zoom buttons; tooltip header uses pill capsules. Theme-aware base config. Hidden per-chart toolbox enables selection highlight for drag-to-zoom. Per-chart multi-select dropdown (max 4 fields, searchable with checkboxes) lets users choose which telemetry fields to display; settings persisted to localStorage.",
     "map": "MapLibre terrain with deck.gl overlay. Spline-smoothed color-by gradient path, shadow layer, start/end/home markers, hover tooltip. Replay telemetry overlay with live-interpolated data during playback. RC stick input overlay with progressive-fill bars and theme-aware styling (cyan on dark, dark slate on light).",
     "loading": "Spinner uses border-sky-400 for both-mode visibility."
   },
