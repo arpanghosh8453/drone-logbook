@@ -20,6 +20,9 @@ import { DayPicker, type DateRange } from 'react-day-picker';
 import type { FlightDataResponse, Flight, TelemetryData } from '@/types';
 import { addToBlacklist } from './FlightImporter';
 import { FlyCardGenerator } from './FlyCardGenerator';
+import { HtmlReportModal } from './HtmlReportModal';
+import { buildHtmlReport, type HtmlReportFieldConfig, type FlightReportData } from '@/lib/htmlReportBuilder';
+import { fetchFlightWeather } from '@/lib/weather';
 import 'react-day-picker/dist/style.css';
 import JSZip from 'jszip';
 
@@ -29,13 +32,13 @@ import JSZip from 'jszip';
 function isElementInView(element: HTMLElement, threshold: number = 0.6): boolean {
   const rect = element.getBoundingClientRect();
   const windowHeight = window.innerHeight;
-  
+
   // Calculate how much of the element is visible
   const visibleTop = Math.max(0, rect.top);
   const visibleBottom = Math.min(windowHeight, rect.bottom);
   const visibleHeight = Math.max(0, visibleBottom - visibleTop);
   const visibleRatio = visibleHeight / rect.height;
-  
+
   return visibleRatio >= threshold;
 }
 
@@ -54,63 +57,63 @@ function smoothScrollToElement(
       resolve();
       return;
     }
-    
+
     const scrollContainer = element.closest('.overflow-auto') || document.documentElement;
     const isDocScroll = scrollContainer === document.documentElement;
-    
+
     const elementRect = element.getBoundingClientRect();
-    const containerRect = isDocScroll 
+    const containerRect = isDocScroll
       ? { top: 0, height: window.innerHeight }
       : (scrollContainer as HTMLElement).getBoundingClientRect();
-    
+
     // Calculate target position to center the element
     const elementCenter = elementRect.top + elementRect.height / 2;
     const containerCenter = containerRect.top + containerRect.height / 2;
     const scrollOffset = elementCenter - containerCenter + offset;
-    
-    const startScroll = isDocScroll 
-      ? window.scrollY 
+
+    const startScroll = isDocScroll
+      ? window.scrollY
       : (scrollContainer as HTMLElement).scrollTop;
     const targetScroll = startScroll + scrollOffset;
-    
+
     const startTime = performance.now();
-    
+
     // Ease-in-out cubic for smooth acceleration and deceleration
     const easeInOutCubic = (t: number): number => {
-      return t < 0.5 
-        ? 4 * t * t * t 
+      return t < 0.5
+        ? 4 * t * t * t
         : 1 - Math.pow(-2 * t + 2, 3) / 2;
     };
-    
+
     const animateScroll = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const easedProgress = easeInOutCubic(progress);
-      
+
       const currentScroll = startScroll + (targetScroll - startScroll) * easedProgress;
-      
+
       if (isDocScroll) {
         window.scrollTo(0, currentScroll);
       } else {
         (scrollContainer as HTMLElement).scrollTop = currentScroll;
       }
-      
+
       if (progress < 1) {
         requestAnimationFrame(animateScroll);
       } else {
         resolve();
       }
     };
-    
+
     requestAnimationFrame(animateScroll);
   });
 }
 
-export function FlightList({ 
+export function FlightList({
   onSelectFlight,
   onHighlightFlight,
   activeView = 'flights',
-}: { 
+}: {
   onSelectFlight?: (flightId: number) => void;
   onHighlightFlight?: (flightId: number | null) => void;
   activeView?: 'flights' | 'overview';
@@ -163,7 +166,7 @@ export function FlightList({
   const [selectedDrones, setSelectedDrones] = useState<string[]>([]);
   const [selectedBatteries, setSelectedBatteries] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  
+
   // For keyboard navigation: preview ID for visual highlighting before Enter confirms selection
   const [previewFlightId, setPreviewFlightId] = useState<number | null>(null);
   const [isFilterInverted, setIsFilterInverted] = useState(false);
@@ -219,6 +222,8 @@ export function FlightList({
   // Notes modal state
   const [notesModalFlightId, setNotesModalFlightId] = useState<number | null>(null);
   const [notesInput, setNotesInput] = useState('');
+  // HTML Report modal state
+  const [showHtmlReportModal, setShowHtmlReportModal] = useState(false);
   const dateButtonRef = useRef<HTMLButtonElement | null>(null);
   const sortButtonRef = useRef<HTMLButtonElement | null>(null);
   const sortDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -275,7 +280,7 @@ export function FlightList({
   // Sync filtered flight IDs to the store so Overview can use them
   // Only sync after flights have loaded to avoid setting an empty Set prematurely
   const setSidebarFilteredFlightIds = useFlightStore((s) => s.setSidebarFilteredFlightIds);
-  
+
   // Apply heatmap date filter when set from Overview (double-click on heatmap day)
   // This effect must run BEFORE the general sync effect to avoid race conditions
   useEffect(() => {
@@ -453,6 +458,74 @@ export function FlightList({
     };
   }, [flights]);
 
+  // Clamp filter slider values when ranges change (e.g. after flight deletion)
+  // This prevents filters from getting "stuck" with values outside the new data range
+  useEffect(() => {
+    if (durationFilterMin !== null && durationFilterMin >= durationRange.maxMins) setDurationFilterMin(null);
+    if (durationFilterMax !== null && durationFilterMax <= durationRange.minMins) setDurationFilterMax(null);
+    if (durationFilterMin !== null && durationFilterMin <= durationRange.minMins) setDurationFilterMin(null);
+    if (durationFilterMax !== null && durationFilterMax >= durationRange.maxMins) setDurationFilterMax(null);
+  }, [durationRange]);
+
+  useEffect(() => {
+    if (altitudeFilterMin !== null && altitudeFilterMin >= altitudeRange.max) setAltitudeFilterMin(null);
+    if (altitudeFilterMax !== null && altitudeFilterMax <= altitudeRange.min) setAltitudeFilterMax(null);
+    if (altitudeFilterMin !== null && altitudeFilterMin <= altitudeRange.min) setAltitudeFilterMin(null);
+    if (altitudeFilterMax !== null && altitudeFilterMax >= altitudeRange.max) setAltitudeFilterMax(null);
+  }, [altitudeRange]);
+
+  useEffect(() => {
+    if (distanceFilterMin !== null && distanceFilterMin >= distanceRange.max) setDistanceFilterMin(null);
+    if (distanceFilterMax !== null && distanceFilterMax <= distanceRange.min) setDistanceFilterMax(null);
+    if (distanceFilterMin !== null && distanceFilterMin <= distanceRange.min) setDistanceFilterMin(null);
+    if (distanceFilterMax !== null && distanceFilterMax >= distanceRange.max) setDistanceFilterMax(null);
+  }, [distanceRange]);
+
+  // Prune stale dropdown selections when available options shrink (e.g. after flight deletion)
+  useEffect(() => {
+    const validKeys = new Set(droneOptions.map((d) => d.key));
+    setSelectedDrones((prev) => {
+      const pruned = prev.filter((k) => validKeys.has(k));
+      return pruned.length !== prev.length ? pruned : prev;
+    });
+  }, [droneOptions]);
+
+  useEffect(() => {
+    const validSerials = new Set(batteryOptions);
+    setSelectedBatteries((prev) => {
+      const pruned = prev.filter((s) => validSerials.has(s));
+      return pruned.length !== prev.length ? pruned : prev;
+    });
+  }, [batteryOptions]);
+
+  useEffect(() => {
+    const validTags = new Set(allTags);
+    setSelectedTags((prev) => {
+      const pruned = prev.filter((t) => validTags.has(t));
+      return pruned.length !== prev.length ? pruned : prev;
+    });
+  }, [allTags]);
+
+  // Reset date range filter if no flights fall within the selected range after deletion
+  useEffect(() => {
+    if (!dateRange?.from && !dateRange?.to) return;
+    const start = dateRange.from ?? null;
+    const end = dateRange.to ? new Date(dateRange.to) : null;
+    if (end) end.setHours(23, 59, 59, 999);
+
+    const anyMatch = flights.some((f) => {
+      if (!f.startTime) return false;
+      const d = new Date(f.startTime);
+      if (start && d < start) return false;
+      if (end && d > end) return false;
+      return true;
+    });
+
+    if (!anyMatch) {
+      setDateRange(undefined);
+    }
+  }, [flights]);
+
   const filteredFlights = useMemo(() => {
     // Always apply filters
     const start = dateRange?.from ?? null;
@@ -531,7 +604,7 @@ export function FlightList({
         if (flight.homeLat == null || flight.homeLon == null) return false;
         const { west, south, east, north } = mapVisibleBounds;
         const inBounds = flight.homeLon >= west && flight.homeLon <= east &&
-                         flight.homeLat >= south && flight.homeLat <= north;
+          flight.homeLat >= south && flight.homeLat <= north;
         if (!inBounds) return false;
       }
 
@@ -610,7 +683,7 @@ export function FlightList({
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
-      
+
       // Don't handle if a modal/dropdown is open
       if (isDateOpen || isSortOpen || isTagDropdownOpen || isExportDropdownOpen || editingId !== null) {
         return;
@@ -618,22 +691,22 @@ export function FlightList({
 
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        
+
         if (sortedFlights.length === 0) return;
-        
+
         // Use previewFlightId if set (during navigation), otherwise use selectedFlightId
         const currentId = previewFlightId ?? (activeView === 'overview' ? overviewHighlightedFlightId : selectedFlightId);
-        const currentIndex = currentId 
+        const currentIndex = currentId
           ? sortedFlights.findIndex(f => f.id === currentId)
           : -1;
-        
+
         let nextIndex: number;
         if (event.key === 'ArrowDown') {
           nextIndex = currentIndex < sortedFlights.length - 1 ? currentIndex + 1 : 0;
         } else {
           nextIndex = currentIndex > 0 ? currentIndex - 1 : sortedFlights.length - 1;
         }
-        
+
         const nextFlight = sortedFlights[nextIndex];
         if (nextFlight) {
           if (activeView === 'overview') {
@@ -643,13 +716,13 @@ export function FlightList({
             // In flights mode, arrow keys update preview
             setPreviewFlightId(nextFlight.id);
           }
-          
+
           // Scroll the item into view in the flight list
           const flightElement = document.querySelector(`[data-flight-id="${nextFlight.id}"]`);
           flightElement?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
       }
-      
+
       // Enter key selects and loads the previewed/highlighted flight
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -756,7 +829,7 @@ export function FlightList({
     const calculateMaxDistanceFromHome = (telemetry: TelemetryData): number | null => {
       const lats = telemetry.latitude ?? [];
       const lngs = telemetry.longitude ?? [];
-      
+
       let homeLat: number | null = null;
       let homeLng: number | null = null;
       for (let i = 0; i < lats.length; i++) {
@@ -768,7 +841,7 @@ export function FlightList({
           break;
         }
       }
-      
+
       if (homeLat === null || homeLng === null) return null;
 
       let maxDistance = 0;
@@ -776,7 +849,7 @@ export function FlightList({
         const lat = lats[i];
         const lng = lngs[i];
         if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-        
+
         const toRad = (value: number) => (value * Math.PI) / 180;
         const r = 6371000;
         const dLat = toRad(lat - homeLat);
@@ -786,10 +859,10 @@ export function FlightList({
           Math.cos(toRad(homeLat)) * Math.cos(toRad(lat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = r * c;
-        
+
         if (distance > maxDistance) maxDistance = distance;
       }
-      
+
       return maxDistance;
     };
 
@@ -797,11 +870,11 @@ export function FlightList({
       const maxDistanceFromHome = calculateMaxDistanceFromHome(data.telemetry);
       const takeoffLat = flight.homeLat ?? (data.telemetry.latitude?.[0] || null);
       const takeoffLon = flight.homeLon ?? (data.telemetry.longitude?.[0] || null);
-      
+
       // Get aircraft name - use edited name if available, otherwise fall back to aircraftName or droneModel
       const fallbackName = flight.aircraftName || flight.droneModel || '';
-      const aircraftName = flight.droneSerial 
-        ? getDroneDisplayNameFn(flight.droneSerial, fallbackName) 
+      const aircraftName = flight.droneSerial
+        ? getDroneDisplayNameFn(flight.droneSerial, fallbackName)
         : fallbackName;
 
       // Format tags as semicolon-separated string
@@ -833,7 +906,7 @@ export function FlightList({
     try {
       setIsExporting(true);
       setExportProgress({ done: 0, total: filteredFlights.length, currentFile: '' });
-      
+
       const flightsData: { flight: Flight; data: FlightDataResponse }[] = [];
 
       // In Tauri mode, pick a directory first
@@ -855,7 +928,7 @@ export function FlightList({
         const baseName = flight.displayName || flight.fileName || `flight`;
         const safeName = sanitizeFileName(`${baseName}_${flight.id}`);
         setExportProgress({ done: i, total: filteredFlights.length, currentFile: safeName });
-        
+
         try {
           const data: FlightDataResponse = await api.getFlightData(flight.id, 999999999);
 
@@ -898,11 +971,11 @@ export function FlightList({
 
   const handleSummaryExport = async () => {
     if (filteredFlights.length <= 1) return;
-    
+
     try {
       setIsExporting(true);
       setExportProgress({ done: 0, total: filteredFlights.length, currentFile: 'Building summary...' });
-      
+
       const flightsData: { flight: Flight; data: FlightDataResponse }[] = [];
 
       // In Tauri mode, pick a file location first
@@ -924,7 +997,7 @@ export function FlightList({
         const baseName = flight.displayName || flight.fileName || `flight`;
         const safeName = sanitizeFileName(`${baseName}_${flight.id}`);
         setExportProgress({ done: i, total: filteredFlights.length, currentFile: safeName });
-        
+
         try {
           const data: FlightDataResponse = await api.getFlightData(flight.id, 999999999);
           flightsData.push({ flight, data });
@@ -934,7 +1007,7 @@ export function FlightList({
       }
 
       const summaryCsv = buildSummaryCsv(flightsData, getDroneDisplayName);
-      
+
       if (isWebMode()) {
         downloadFile('filtered_flights_summary.csv', summaryCsv);
       } else {
@@ -950,6 +1023,105 @@ export function FlightList({
     }
   };
 
+  const handleHtmlReportExport = async (config: {
+    documentTitle: string;
+    pilotName: string;
+    fieldConfig: HtmlReportFieldConfig;
+  }) => {
+    setShowHtmlReportModal(false);
+
+    // Build default filename: Flight_Regulation_Report_YYYY-MM-DD_HH-MM-SS.html
+    const now = new Date();
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const defaultFileName = `Flight_Regulation_Report_${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}_${pad2(now.getHours())}-${pad2(now.getMinutes())}-${pad2(now.getSeconds())}.html`;
+
+    // For desktop (Tauri) mode, open the save dialog FIRST before starting the export
+    let filePath: string | null = null;
+    if (!isWebMode()) {
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        filePath = await save({
+          defaultPath: defaultFileName,
+          filters: [{ name: 'HTML', extensions: ['html'] }],
+        }) as string | null;
+        if (!filePath) return; // User cancelled
+      } catch (err) {
+        console.error('Save dialog failed:', err);
+        return;
+      }
+    }
+
+    try {
+      setIsExporting(true);
+      setExportProgress({ done: 0, total: filteredFlights.length, currentFile: 'Preparing report...' });
+
+      // Check if any weather fields are enabled
+      const weatherFields: (keyof HtmlReportFieldConfig)[] = [
+        'temperature', 'windSpeed', 'windGusts', 'humidity',
+        'cloudCover', 'precipitation', 'pressure', 'weatherCondition',
+      ];
+      const needsWeather = weatherFields.some((f) => config.fieldConfig[f]);
+
+      const reportData: FlightReportData[] = [];
+
+      for (let i = 0; i < filteredFlights.length; i++) {
+        const flight = filteredFlights[i];
+        const baseName = flight.displayName || flight.fileName || 'flight';
+        setExportProgress({ done: i, total: filteredFlights.length, currentFile: `Processing ${baseName}` });
+
+        try {
+          const data: FlightDataResponse = await api.getFlightData(flight.id, 999999999);
+
+          // Fetch weather data if any weather field is enabled
+          let weather = null;
+          if (needsWeather) {
+            const lat = flight.homeLat ?? data.telemetry.latitude?.find((v) => v !== null) ?? null;
+            const lon = flight.homeLon ?? data.telemetry.longitude?.find((v) => v !== null) ?? null;
+            if (lat != null && lon != null && flight.startTime) {
+              try {
+                weather = await fetchFlightWeather(lat as number, lon as number, flight.startTime);
+              } catch {
+                // Weather fetch failed; leave as null
+              }
+            }
+          }
+
+          reportData.push({
+            flight,
+            data,
+            weather,
+            getDroneDisplayName,
+            getBatteryDisplayName,
+          });
+        } catch (err) {
+          console.error(`Failed to fetch flight ${flight.id} for HTML report:`, err);
+        }
+      }
+
+      setExportProgress({ done: filteredFlights.length, total: filteredFlights.length, currentFile: 'Building report...' });
+
+      const htmlContent = buildHtmlReport(reportData, {
+        documentTitle: config.documentTitle,
+        pilotName: config.pilotName,
+        fieldConfig: config.fieldConfig,
+        unitSystem,
+      });
+
+      if (isWebMode()) {
+        downloadFile(defaultFileName, htmlContent, 'text/html');
+      } else if (filePath) {
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+        await writeTextFile(filePath, htmlContent);
+      }
+
+      setExportProgress({ done: filteredFlights.length, total: filteredFlights.length, currentFile: '' });
+      setTimeout(() => setIsExporting(false), 1000);
+    } catch (err) {
+      console.error('HTML report export failed:', err);
+      setIsExporting(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     try {
       setIsDeleting(true);
@@ -959,12 +1131,12 @@ export function FlightList({
       for (let i = 0; i < filteredFlights.length; i++) {
         const flight = filteredFlights[i];
         setDeleteProgress({ done: i, total: filteredFlights.length, currentFile: flight.fileName || '' });
-        
+
         // Add to blacklist before deleting (so sync won't re-import)
         if (flight.fileHash) {
           addToBlacklist(flight.fileHash);
         }
-        
+
         await deleteFlight(flight.id);
       }
 
@@ -979,26 +1151,26 @@ export function FlightList({
   // Handle bulk untag (remove selected tags from filtered flights)
   const handleBulkUntag = async () => {
     if (selectedTags.length === 0 || filteredFlights.length === 0) return;
-    
+
     try {
       setIsUntagging(true);
       setConfirmUntag(false);
       const tagsToRemove = [...selectedTags];
-      const flightsToProcess = filteredFlights.filter(f => 
+      const flightsToProcess = filteredFlights.filter(f =>
         f.tags?.some(t => tagsToRemove.includes(t.tag))
       );
-      
+
       if (flightsToProcess.length === 0) {
         setIsUntagging(false);
         return;
       }
-      
+
       setUntagProgress({ done: 0, total: flightsToProcess.length });
 
       for (let i = 0; i < flightsToProcess.length; i++) {
         const flight = flightsToProcess[i];
         setUntagProgress({ done: i, total: flightsToProcess.length });
-        
+
         // Remove each selected tag from this flight
         for (const tag of tagsToRemove) {
           if (flight.tags?.some(t => t.tag === tag)) {
@@ -1028,7 +1200,7 @@ export function FlightList({
       setBulkTagInput('');
       return;
     }
-    
+
     try {
       setIsBulkTagging(true);
       setShowBulkTagInput(false);
@@ -1037,7 +1209,7 @@ export function FlightList({
       for (let i = 0; i < filteredFlights.length; i++) {
         const flight = filteredFlights[i];
         setBulkTagProgress({ done: i, total: filteredFlights.length });
-        
+
         // Only add if flight doesn't already have this tag
         if (!flight.tags?.some(t => t.tag === tagToAdd)) {
           await addTag(flight.id, tagToAdd);
@@ -1068,7 +1240,7 @@ export function FlightList({
   const handleContextExport = async (flightId: number, format: 'csv' | 'json' | 'gpx' | 'kml') => {
     setContextMenu(null);
     setContextExportSubmenuOpen(false);
-    
+
     const flight = flights.find(f => f.id === flightId);
     if (!flight) return;
 
@@ -1078,7 +1250,7 @@ export function FlightList({
 
       let content = '';
       let extension = format;
-      
+
       if (format === 'csv') content = buildCsv(data);
       else if (format === 'json') content = buildJson(data);
       else if (format === 'gpx') content = buildGpx(data);
@@ -1144,32 +1316,32 @@ export function FlightList({
   // Handle generate FlyCard from context menu
   const handleContextGenerateFlyCard = async (flightId: number) => {
     setContextMenu(null);
-    
+
     // If this flight is not currently selected, select it first
     if (selectedFlightId !== flightId) {
       // Mark map as not loaded yet
       (window as any).__flightMapLoaded = false;
-      
+
       // Set pending state to show we're waiting
       setFlyCardPending(flightId);
-      
+
       // Select the flight (this will trigger map reload)
       await selectFlight(flightId);
       onSelectFlight?.(flightId);
-      
+
       // Wait for map to load (poll for up to 5 seconds)
       let attempts = 0;
       while (!(window as any).__flightMapLoaded && attempts < 50) {
         await new Promise(r => setTimeout(r, 100));
         attempts++;
       }
-      
+
       // Extra delay to ensure map tiles are rendered
       await new Promise(r => setTimeout(r, 500));
-      
+
       setFlyCardPending(null);
     }
-    
+
     // Now open the FlyCard generator
     setFlyCardFlightId(flightId);
   };
@@ -1207,7 +1379,7 @@ export function FlightList({
       setConfirmDeleteId(null);
       setConfirmBulkDelete(false);
     }}>
-        <div className="border-b border-gray-700 flex-shrink-0">
+      <div className="border-b border-gray-700 flex-shrink-0">
         {/* Collapsible filter header */}
         <button
           type="button"
@@ -1232,1197 +1404,1185 @@ export function FlightList({
                   setIsFilterInverted((v) => !v);
                 }}
                 title={isFilterInverted ? 'Switch to normal filtering' : 'Invert filter selection'}
-                className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                  isFilterInverted
-                    ? 'text-red-400 bg-red-500/20 hover:bg-red-500/30'
-                    : 'text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10'
-                }`}
+                className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${isFilterInverted
+                  ? 'text-red-400 bg-red-500/20 hover:bg-red-500/30'
+                  : 'text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10'
+                  }`}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1-.25 1.94-.68 2.77l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1 .25-1.94.68-2.77L5.22 7.77C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1-.25 1.94-.68 2.77l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1 .25-1.94.68-2.77L5.22 7.77C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
                 </svg>
               </button>
             )}
           </span>
           <span
-            className={`w-5 h-5 rounded-full border border-gray-600 flex items-center justify-center transition-transform duration-200 ${
-              isFiltersCollapsed ? 'rotate-180' : ''
-            }`}
+            className={`w-5 h-5 rounded-full border border-gray-600 flex items-center justify-center transition-transform duration-200 ${isFiltersCollapsed ? 'rotate-180' : ''
+              }`}
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
           </span>
         </button>
 
         {/* Collapsible filter body */}
         <div
-          className={`transition-all duration-200 ease-in-out ${
-            isFiltersCollapsed ? 'max-h-0 overflow-hidden opacity-0' : 'max-h-[600px] overflow-visible opacity-100'
-          }`}
+          className={`transition-all duration-200 ease-in-out ${isFiltersCollapsed ? 'max-h-0 overflow-hidden opacity-0' : 'max-h-[600px] overflow-visible opacity-100'
+            }`}
         >
-        <div className="px-3 pb-3 space-y-3">
-        {/* Map area filter toggle */}
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-gray-400">Overview map area filter</label>
-          <button
-            type="button"
-            onClick={() => setMapAreaFilterEnabled(!mapAreaFilterEnabled)}
-            className="flex items-center gap-2"
-            aria-pressed={mapAreaFilterEnabled}
-          >
-            <span
-              className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-all ${
-                mapAreaFilterEnabled
-                  ? 'bg-drone-primary/90 border-drone-primary'
-                  : 'bg-drone-surface border-gray-600 toggle-track-off'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                  mapAreaFilterEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                }`}
-              />
-            </span>
-          </button>
-        </div>
-
-        {/* Duration range slider */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0 text-center">Duration</label>
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <div className="flex-1 min-w-0">
-              {(() => {
-                const lo = durationFilterMin ?? durationRange.minMins;
-                const hi = durationFilterMax ?? durationRange.maxMins;
-                const span = Math.max(durationRange.maxMins - durationRange.minMins, 1);
-                const loPct = ((lo - durationRange.minMins) / span) * 100;
-                const hiPct = ((hi - durationRange.minMins) / span) * 100;
-                return (
-                  <div className="dual-range-wrap" style={{ '--lo-pct': `${loPct}%`, '--hi-pct': `${hiPct}%` } as React.CSSProperties}>
-                    <div className="dual-range-track" />
-                    <div className="dual-range-fill" />
-                    <input
-                      type="range"
-                      min={durationRange.minMins}
-                      max={durationRange.maxMins}
-                      step={1}
-                      value={lo}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const clamped = Math.min(val, hi - 1);
-                        setDurationFilterMin(clamped <= durationRange.minMins ? null : clamped);
-                      }}
-                      className="dual-range-input"
-                    />
-                    <input
-                      type="range"
-                      min={durationRange.minMins}
-                      max={durationRange.maxMins}
-                      step={1}
-                      value={hi}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const clamped = Math.max(val, lo + 1);
-                        setDurationFilterMax(clamped >= durationRange.maxMins ? null : clamped);
-                      }}
-                      className="dual-range-input"
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-            <span className={`text-xs font-medium whitespace-nowrap min-w-[60px] flex items-center justify-center flex-shrink-0 ${isLight ? 'text-gray-700' : 'text-gray-200'}`}>
-              {(() => {
-                const lo = durationFilterMin ?? durationRange.minMins;
-                const hi = durationFilterMax ?? durationRange.maxMins;
-                const fmt = (m: number) => m >= 60 ? `${Math.floor(m / 60)}h${m % 60 > 0 ? m % 60 : ''}` : `${m}m`;
-                if (durationFilterMin === null && durationFilterMax === null) return 'Any';
-                return `${fmt(lo)}–${fmt(hi)}`;
-              })()}
-            </span>
-          </div>
-        </div>
-
-        {/* Max Altitude range slider */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0 text-center">Altitude</label>
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <div className="flex-1 min-w-0">
-              {(() => {
-                const lo = altitudeFilterMin ?? altitudeRange.min;
-                const hi = altitudeFilterMax ?? altitudeRange.max;
-                const span = Math.max(altitudeRange.max - altitudeRange.min, 1);
-                const loPct = ((lo - altitudeRange.min) / span) * 100;
-                const hiPct = ((hi - altitudeRange.min) / span) * 100;
-                return (
-                  <div className="dual-range-wrap" style={{ '--lo-pct': `${loPct}%`, '--hi-pct': `${hiPct}%` } as React.CSSProperties}>
-                    <div className="dual-range-track" />
-                    <div className="dual-range-fill" />
-                    <input
-                      type="range"
-                      min={altitudeRange.min}
-                      max={altitudeRange.max}
-                      step={1}
-                      value={lo}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const clamped = Math.min(val, hi - 1);
-                        setAltitudeFilterMin(clamped <= altitudeRange.min ? null : clamped);
-                      }}
-                      className="dual-range-input"
-                    />
-                    <input
-                      type="range"
-                      min={altitudeRange.min}
-                      max={altitudeRange.max}
-                      step={1}
-                      value={hi}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const clamped = Math.max(val, lo + 1);
-                        setAltitudeFilterMax(clamped >= altitudeRange.max ? null : clamped);
-                      }}
-                      className="dual-range-input"
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-            <span className={`text-xs font-medium whitespace-nowrap min-w-[60px] flex items-center justify-center flex-shrink-0 ${isLight ? 'text-gray-700' : 'text-gray-200'}`}>
-              {(() => {
-                const lo = altitudeFilterMin ?? altitudeRange.min;
-                const hi = altitudeFilterMax ?? altitudeRange.max;
-                const fmt = (m: number) => unitSystem === 'imperial' ? `${Math.round(m * 3.28084)}ft` : `${m}m`;
-                if (altitudeFilterMin === null && altitudeFilterMax === null) return 'Any';
-                return `${fmt(lo)}–${fmt(hi)}`;
-              })()}
-            </span>
-          </div>
-        </div>
-
-        {/* Total Distance range slider */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0 text-center">Distance</label>
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <div className="flex-1 min-w-0">
-              {(() => {
-                const lo = distanceFilterMin ?? distanceRange.min;
-                const hi = distanceFilterMax ?? distanceRange.max;
-                const span = Math.max(distanceRange.max - distanceRange.min, 1);
-                const loPct = ((lo - distanceRange.min) / span) * 100;
-                const hiPct = ((hi - distanceRange.min) / span) * 100;
-                return (
-                  <div className="dual-range-wrap" style={{ '--lo-pct': `${loPct}%`, '--hi-pct': `${hiPct}%` } as React.CSSProperties}>
-                    <div className="dual-range-track" />
-                    <div className="dual-range-fill" />
-                    <input
-                      type="range"
-                      min={distanceRange.min}
-                      max={distanceRange.max}
-                      step={1}
-                      value={lo}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const clamped = Math.min(val, hi - 1);
-                        setDistanceFilterMin(clamped <= distanceRange.min ? null : clamped);
-                      }}
-                      className="dual-range-input"
-                    />
-                    <input
-                      type="range"
-                      min={distanceRange.min}
-                      max={distanceRange.max}
-                      step={1}
-                      value={hi}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const clamped = Math.max(val, lo + 1);
-                        setDistanceFilterMax(clamped >= distanceRange.max ? null : clamped);
-                      }}
-                      className="dual-range-input"
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-            <span className={`text-xs font-medium whitespace-nowrap min-w-[60px] flex items-center justify-center flex-shrink-0 ${isLight ? 'text-gray-700' : 'text-gray-200'}`}>
-              {(() => {
-                const lo = distanceFilterMin ?? distanceRange.min;
-                const hi = distanceFilterMax ?? distanceRange.max;
-                const fmt = (m: number) => {
-                  if (unitSystem === 'imperial') {
-                    const miles = m * 0.000621371;
-                    return miles >= 1 ? `${miles.toFixed(1)}mi` : `${Math.round(m * 3.28084)}ft`;
-                  }
-                  return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
-                };
-                if (distanceFilterMin === null && distanceFilterMax === null) return 'Any';
-                return `${fmt(lo)}–${fmt(hi)}`;
-              })()}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Date</label>
-          <button
-            ref={dateButtonRef}
-            type="button"
-            onClick={() => setIsDateOpen((open) => !open)}
-            className="input flex-1 text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
-          >
-            <span
-              className={
-                dateRange?.from || dateRange?.to ? 'text-gray-100' : 'text-gray-400'
-              }
-            >
-              {dateRangeLabel}
-            </span>
-            <CalendarIcon />
-          </button>
-          {isDateOpen && dateAnchor && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setIsDateOpen(false)}
-              />
-              <div
-                className="fixed z-50 rounded-xl border border-gray-700 bg-drone-surface p-3 shadow-xl"
-                style={{
-                  top: dateAnchor.top,
-                  left: dateAnchor.left,
-                  width: Math.max(320, dateAnchor.width),
-                }}
-              >
-                <DayPicker
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={(range) => {
-                    setDateRange(range);
-                    if (range?.from && range?.to) {
-                      setIsDateOpen(false);
-                    }
-                  }}
-                  disabled={{ after: today }}
-                  weekStartsOn={1}
-                  numberOfMonths={1}
-                  className="rdp-theme"
-                />
-                <div className="mt-2 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setDateRange(undefined)}
-                    className="text-xs text-gray-400 hover:text-white"
-                  >
-                    Clear range
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsDateOpen(false)}
-                    className="text-xs text-gray-200 hover:text-white"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Drone</label>
-          <div className="relative flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => setIsDroneDropdownOpen((v) => !v)}
-              className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
-            >
-              <span className={`truncate ${selectedDrones.length > 0 ? 'text-gray-100' : 'text-gray-400'}`}>
-                {selectedDrones.length > 0
-                  ? selectedDrones.map((k) => droneOptions.find((d) => d.key === k)?.label ?? k).join(', ')
-                  : 'All drones'}
-              </span>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            {isDroneDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => { setIsDroneDropdownOpen(false); setDroneSearch(''); }}
-                />
-                <div
-                  ref={droneDropdownRef}
-                  className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
-                >
-                  {droneOptions.length > 4 && (
-                    <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
-                      <input
-                        type="text"
-                        value={droneSearch}
-                        onChange={(e) => { setDroneSearch(e.target.value); setDroneHighlightedIndex(0); }}
-                        onKeyDown={(e) => {
-                          const sorted = getDroneSorted();
-                          if (e.key === 'ArrowDown') { e.preventDefault(); setDroneHighlightedIndex((prev) => prev < sorted.length - 1 ? prev + 1 : 0); }
-                          else if (e.key === 'ArrowUp') { e.preventDefault(); setDroneHighlightedIndex((prev) => prev > 0 ? prev - 1 : sorted.length - 1); }
-                          else if (e.key === 'Enter' && sorted.length > 0) {
-                            e.preventDefault();
-                            const item = sorted[droneHighlightedIndex];
-                            if (item) setSelectedDrones((prev) => prev.includes(item.key) ? prev.filter((k) => k !== item.key) : [...prev, item.key]);
-                          } else if (e.key === 'Escape') { e.preventDefault(); setIsDroneDropdownOpen(false); setDroneSearch(''); }
-                        }}
-                        placeholder="Search drones…"
-                        autoFocus
-                        className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
-                      />
-                    </div>
-                  )}
-                  <div className="overflow-auto flex-1">
-                    {(() => {
-                      const sorted = getDroneSorted();
-                      if (sorted.length === 0) return <p className="text-xs text-gray-500 px-3 py-2">No matching drones</p>;
-                      return sorted.map((drone, index) => {
-                        const isSelected = selectedDrones.includes(drone.key);
-                        return (
-                          <button
-                            key={drone.key}
-                            type="button"
-                            onClick={() => setSelectedDrones((prev) => isSelected ? prev.filter((k) => k !== drone.key) : [...prev, drone.key])}
-                            onMouseEnter={() => setDroneHighlightedIndex(index)}
-                            className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                              isSelected ? 'bg-sky-500/20 text-gray-800 dark:text-sky-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
-                            } ${index === droneHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
-                          >
-                            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                              isSelected ? 'border-sky-500 bg-sky-500' : 'border-gray-400 dark:border-gray-600'
-                            }`}>
-                              {isSelected && (
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                              )}
-                            </span>
-                            <span className="truncate">{drone.label}</span>
-                          </button>
-                        );
-                      });
-                    })()}
-                    {selectedDrones.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedDrones([]); setDroneSearch(''); setIsDroneDropdownOpen(false); }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-white border-t border-gray-700"
-                      >
-                        Clear drone filter
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Battery</label>
-          <div className="relative flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => setIsBatteryDropdownOpen((v) => !v)}
-              className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
-            >
-              <span className={`truncate ${selectedBatteries.length > 0 ? 'text-gray-100' : 'text-gray-400'}`}>
-                {selectedBatteries.length > 0
-                  ? selectedBatteries.map((s) => getBatteryDisplayName(s)).join(', ')
-                  : 'All batteries'}
-              </span>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            {isBatteryDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => { setIsBatteryDropdownOpen(false); setBatterySearch(''); }}
-                />
-                <div
-                  ref={batteryDropdownRef}
-                  className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
-                >
-                  {batteryOptions.length > 4 && (
-                    <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
-                      <input
-                        type="text"
-                        value={batterySearch}
-                        onChange={(e) => { setBatterySearch(e.target.value); setBatteryHighlightedIndex(0); }}
-                        onKeyDown={(e) => {
-                          const sorted = getBatterySorted();
-                          if (e.key === 'ArrowDown') { e.preventDefault(); setBatteryHighlightedIndex((prev) => prev < sorted.length - 1 ? prev + 1 : 0); }
-                          else if (e.key === 'ArrowUp') { e.preventDefault(); setBatteryHighlightedIndex((prev) => prev > 0 ? prev - 1 : sorted.length - 1); }
-                          else if (e.key === 'Enter' && sorted.length > 0) {
-                            e.preventDefault();
-                            const item = sorted[batteryHighlightedIndex];
-                            if (item) setSelectedBatteries((prev) => prev.includes(item.value) ? prev.filter((k) => k !== item.value) : [...prev, item.value]);
-                          } else if (e.key === 'Escape') { e.preventDefault(); setIsBatteryDropdownOpen(false); setBatterySearch(''); }
-                        }}
-                        placeholder="Search batteries…"
-                        autoFocus
-                        className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
-                      />
-                    </div>
-                  )}
-                  <div className="overflow-auto flex-1">
-                    {(() => {
-                      const sorted = getBatterySorted();
-                      if (sorted.length === 0) return <p className="text-xs text-gray-500 px-3 py-2">No matching batteries</p>;
-                      return sorted.map((bat, index) => {
-                        const isSelected = selectedBatteries.includes(bat.value);
-                        return (
-                          <button
-                            key={bat.value}
-                            type="button"
-                            onClick={() => setSelectedBatteries((prev) => isSelected ? prev.filter((k) => k !== bat.value) : [...prev, bat.value])}
-                            onMouseEnter={() => setBatteryHighlightedIndex(index)}
-                            className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                              isSelected ? 'bg-amber-500/20 text-gray-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
-                            } ${index === batteryHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
-                          >
-                            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                              isSelected ? 'border-amber-500 bg-amber-500' : 'border-gray-400 dark:border-gray-600'
-                            }`}>
-                              {isSelected && (
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                              )}
-                            </span>
-                            <span className="truncate">{bat.label}</span>
-                          </button>
-                        );
-                      });
-                    })()}
-                    {selectedBatteries.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedBatteries([]); setBatterySearch(''); setIsBatteryDropdownOpen(false); }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-white border-t border-gray-700"
-                      >
-                        Clear battery filter
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Tag filter */}
-        {allTags.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Tags</label>
-            <div className="relative flex-1 min-w-0">
+          <div className="px-3 pb-3 space-y-3">
+            {/* Map area filter toggle */}
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-400">Overview map area filter</label>
               <button
                 type="button"
-                onClick={() => setIsTagDropdownOpen((v) => !v)}
-                className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
+                onClick={() => setMapAreaFilterEnabled(!mapAreaFilterEnabled)}
+                className="flex items-center gap-2"
+                aria-pressed={mapAreaFilterEnabled}
               >
-                <span className={`truncate ${selectedTags.length > 0 ? 'text-gray-100' : 'text-gray-400'}`}>
-                  {selectedTags.length > 0 ? selectedTags.join(', ') : 'All tags'}
+                <span
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-all ${mapAreaFilterEnabled
+                    ? 'bg-drone-primary/90 border-drone-primary'
+                    : 'bg-drone-surface border-gray-600 toggle-track-off'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${mapAreaFilterEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                  />
                 </span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              {isTagDropdownOpen && (
+            </div>
+
+            {/* Duration range slider */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0 text-center">Duration</label>
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <div className="flex-1 min-w-0">
+                  {(() => {
+                    const lo = durationFilterMin ?? durationRange.minMins;
+                    const hi = durationFilterMax ?? durationRange.maxMins;
+                    const span = Math.max(durationRange.maxMins - durationRange.minMins, 1);
+                    const loPct = ((lo - durationRange.minMins) / span) * 100;
+                    const hiPct = ((hi - durationRange.minMins) / span) * 100;
+                    return (
+                      <div className="dual-range-wrap" style={{ '--lo-pct': `${loPct}%`, '--hi-pct': `${hiPct}%` } as React.CSSProperties}>
+                        <div className="dual-range-track" />
+                        <div className="dual-range-fill" />
+                        <input
+                          type="range"
+                          min={durationRange.minMins}
+                          max={durationRange.maxMins}
+                          step={1}
+                          value={lo}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const clamped = Math.min(val, hi - 1);
+                            setDurationFilterMin(clamped <= durationRange.minMins ? null : clamped);
+                          }}
+                          className="dual-range-input"
+                        />
+                        <input
+                          type="range"
+                          min={durationRange.minMins}
+                          max={durationRange.maxMins}
+                          step={1}
+                          value={hi}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const clamped = Math.max(val, lo + 1);
+                            setDurationFilterMax(clamped >= durationRange.maxMins ? null : clamped);
+                          }}
+                          className="dual-range-input"
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <span className={`text-xs font-medium whitespace-nowrap min-w-[60px] flex items-center justify-center flex-shrink-0 ${isLight ? 'text-gray-700' : 'text-gray-200'}`}>
+                  {(() => {
+                    const lo = durationFilterMin ?? durationRange.minMins;
+                    const hi = durationFilterMax ?? durationRange.maxMins;
+                    const fmt = (m: number) => m >= 60 ? `${Math.floor(m / 60)}h${m % 60 > 0 ? m % 60 : ''}` : `${m}m`;
+                    if (durationFilterMin === null && durationFilterMax === null) return 'Any';
+                    return `${fmt(lo)}–${fmt(hi)}`;
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            {/* Max Altitude range slider */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0 text-center">Altitude</label>
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <div className="flex-1 min-w-0">
+                  {(() => {
+                    const lo = altitudeFilterMin ?? altitudeRange.min;
+                    const hi = altitudeFilterMax ?? altitudeRange.max;
+                    const span = Math.max(altitudeRange.max - altitudeRange.min, 1);
+                    const loPct = ((lo - altitudeRange.min) / span) * 100;
+                    const hiPct = ((hi - altitudeRange.min) / span) * 100;
+                    return (
+                      <div className="dual-range-wrap" style={{ '--lo-pct': `${loPct}%`, '--hi-pct': `${hiPct}%` } as React.CSSProperties}>
+                        <div className="dual-range-track" />
+                        <div className="dual-range-fill" />
+                        <input
+                          type="range"
+                          min={altitudeRange.min}
+                          max={altitudeRange.max}
+                          step={1}
+                          value={lo}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const clamped = Math.min(val, hi - 1);
+                            setAltitudeFilterMin(clamped <= altitudeRange.min ? null : clamped);
+                          }}
+                          className="dual-range-input"
+                        />
+                        <input
+                          type="range"
+                          min={altitudeRange.min}
+                          max={altitudeRange.max}
+                          step={1}
+                          value={hi}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const clamped = Math.max(val, lo + 1);
+                            setAltitudeFilterMax(clamped >= altitudeRange.max ? null : clamped);
+                          }}
+                          className="dual-range-input"
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <span className={`text-xs font-medium whitespace-nowrap min-w-[60px] flex items-center justify-center flex-shrink-0 ${isLight ? 'text-gray-700' : 'text-gray-200'}`}>
+                  {(() => {
+                    const lo = altitudeFilterMin ?? altitudeRange.min;
+                    const hi = altitudeFilterMax ?? altitudeRange.max;
+                    const fmt = (m: number) => unitSystem === 'imperial' ? `${Math.round(m * 3.28084)}ft` : `${m}m`;
+                    if (altitudeFilterMin === null && altitudeFilterMax === null) return 'Any';
+                    return `${fmt(lo)}–${fmt(hi)}`;
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            {/* Total Distance range slider */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0 text-center">Distance</label>
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <div className="flex-1 min-w-0">
+                  {(() => {
+                    const lo = distanceFilterMin ?? distanceRange.min;
+                    const hi = distanceFilterMax ?? distanceRange.max;
+                    const span = Math.max(distanceRange.max - distanceRange.min, 1);
+                    const loPct = ((lo - distanceRange.min) / span) * 100;
+                    const hiPct = ((hi - distanceRange.min) / span) * 100;
+                    return (
+                      <div className="dual-range-wrap" style={{ '--lo-pct': `${loPct}%`, '--hi-pct': `${hiPct}%` } as React.CSSProperties}>
+                        <div className="dual-range-track" />
+                        <div className="dual-range-fill" />
+                        <input
+                          type="range"
+                          min={distanceRange.min}
+                          max={distanceRange.max}
+                          step={1}
+                          value={lo}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const clamped = Math.min(val, hi - 1);
+                            setDistanceFilterMin(clamped <= distanceRange.min ? null : clamped);
+                          }}
+                          className="dual-range-input"
+                        />
+                        <input
+                          type="range"
+                          min={distanceRange.min}
+                          max={distanceRange.max}
+                          step={1}
+                          value={hi}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const clamped = Math.max(val, lo + 1);
+                            setDistanceFilterMax(clamped >= distanceRange.max ? null : clamped);
+                          }}
+                          className="dual-range-input"
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <span className={`text-xs font-medium whitespace-nowrap min-w-[60px] flex items-center justify-center flex-shrink-0 ${isLight ? 'text-gray-700' : 'text-gray-200'}`}>
+                  {(() => {
+                    const lo = distanceFilterMin ?? distanceRange.min;
+                    const hi = distanceFilterMax ?? distanceRange.max;
+                    const fmt = (m: number) => {
+                      if (unitSystem === 'imperial') {
+                        const miles = m * 0.000621371;
+                        return miles >= 1 ? `${miles.toFixed(1)}mi` : `${Math.round(m * 3.28084)}ft`;
+                      }
+                      return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
+                    };
+                    if (distanceFilterMin === null && distanceFilterMax === null) return 'Any';
+                    return `${fmt(lo)}–${fmt(hi)}`;
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Date</label>
+              <button
+                ref={dateButtonRef}
+                type="button"
+                onClick={() => setIsDateOpen((open) => !open)}
+                className="input flex-1 text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
+              >
+                <span
+                  className={
+                    dateRange?.from || dateRange?.to ? 'text-gray-100' : 'text-gray-400'
+                  }
+                >
+                  {dateRangeLabel}
+                </span>
+                <CalendarIcon />
+              </button>
+              {isDateOpen && dateAnchor && (
                 <>
                   <div
                     className="fixed inset-0 z-40"
-                    onClick={() => { setIsTagDropdownOpen(false); setTagSearch(''); }}
+                    onClick={() => setIsDateOpen(false)}
                   />
                   <div
-                    ref={tagDropdownRef}
-                    className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
+                    className="fixed z-50 rounded-xl border border-gray-700 bg-drone-surface p-3 shadow-xl"
+                    style={{
+                      top: dateAnchor.top,
+                      left: dateAnchor.left,
+                      width: Math.max(320, dateAnchor.width),
+                    }}
                   >
-                    {/* Search input */}
-                    <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
-                      <input
-                        type="text"
-                        value={tagSearch}
-                        onChange={(e) => { setTagSearch(e.target.value); setTagHighlightedIndex(0); }}
-                        onKeyDown={(e) => {
-                          const filtered = allTags.filter((tag) => tag.toLowerCase().includes(tagSearch.toLowerCase()));
-                          const sorted = [...filtered].sort((a, b) => {
-                            const aSelected = selectedTags.includes(a);
-                            const bSelected = selectedTags.includes(b);
-                            if (aSelected && !bSelected) return -1;
-                            if (!aSelected && bSelected) return 1;
-                            return a.localeCompare(b);
-                          });
-                          if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            setTagHighlightedIndex(prev => prev < sorted.length - 1 ? prev + 1 : 0);
-                          } else if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            setTagHighlightedIndex(prev => prev > 0 ? prev - 1 : sorted.length - 1);
-                          } else if (e.key === 'Enter' && sorted.length > 0) {
-                            e.preventDefault();
-                            const tag = sorted[tagHighlightedIndex];
-                            if (tag) {
-                              setSelectedTags((prev) =>
-                                prev.includes(tag)
-                                  ? prev.filter((t) => t !== tag)
-                                  : [...prev, tag]
-                              );
-                            }
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault();
-                            setIsTagDropdownOpen(false);
-                            setTagSearch('');
-                          }
-                        }}
-                        placeholder="Search tags…"
-                        autoFocus
-                        className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
-                      />
-                    </div>
-                    <div className="overflow-auto flex-1">
-                    {(() => {
-                      const filtered = allTags.filter((tag) => tag.toLowerCase().includes(tagSearch.toLowerCase()));
-                      if (filtered.length === 0) {
-                        return <p className="text-xs text-gray-500 px-3 py-2">No matching tags</p>;
-                      }
-                      // Sort: selected tags first, then unselected alphabetically
-                      const sorted = [...filtered].sort((a, b) => {
-                        const aSelected = selectedTags.includes(a);
-                        const bSelected = selectedTags.includes(b);
-                        if (aSelected && !bSelected) return -1;
-                        if (!aSelected && bSelected) return 1;
-                        return a.localeCompare(b);
-                      });
-                      return sorted.map((tag, index) => {
-                      const isSelected = selectedTags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() => {
-                            setSelectedTags((prev) =>
-                              isSelected
-                                ? prev.filter((t) => t !== tag)
-                                : [...prev, tag]
-                            );
-                          }}
-                          onMouseEnter={() => setTagHighlightedIndex(index)}
-                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                            isSelected
-                              ? 'bg-violet-500/20 text-gray-800 dark:text-violet-200'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
-                          } ${index === tagHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
-                        >
-                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                            isSelected ? 'border-violet-500 bg-violet-500' : 'border-gray-400 dark:border-gray-600'
-                          }`}>
-                            {isSelected && (
-                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                            )}
-                          </span>
-                          {tag}
-                        </button>
-                      );
-                    });
-                    })()}
-                    {selectedTags.length > 0 && (
+                    <DayPicker
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={(range) => {
+                        setDateRange(range);
+                        if (range?.from && range?.to) {
+                          setIsDateOpen(false);
+                        }
+                      }}
+                      disabled={{ after: today }}
+                      weekStartsOn={1}
+                      numberOfMonths={1}
+                      className="rdp-theme"
+                    />
+                    <div className="mt-2 flex items-center justify-between">
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelectedTags([]);
-                          setTagSearch('');
-                          setIsTagDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-white border-t border-gray-700"
+                        onClick={() => setDateRange(undefined)}
+                        className="text-xs text-gray-400 hover:text-white"
                       >
-                        Clear tag filter
+                        Clear range
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => setIsDateOpen(false)}
+                        className="text-xs text-gray-200 hover:text-white"
+                      >
+                        Done
+                      </button>
                     </div>
                   </div>
                 </>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Search filter and Sort */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Search</label>
-          <div className="relative flex-1 min-w-0">
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by name..."
-              className="input w-full text-xs h-8 px-3"
-              aria-label="Search flights"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                aria-label="Clear search"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            )}
-          </div>
-          {/* Sort buttons */}
-          <div className="relative flex items-center flex-shrink-0">
-            <button
-              ref={sortButtonRef}
-              type="button"
-              onClick={() => setIsSortOpen((open) => !open)}
-              className="h-8 w-8 rounded-l-md border border-gray-700/70 bg-drone-dark text-gray-300 hover:text-white hover:border-gray-600 transition-colors flex items-center justify-center"
-              aria-label={`Sort flights: ${activeSortLabel}`}
-            >
-              <SortIcon />
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'))}
-              className="h-8 w-7 rounded-r-md border border-l-0 border-gray-700/70 bg-drone-dark text-gray-300 hover:text-white hover:border-gray-600 transition-colors flex items-center justify-center"
-              aria-label={`Toggle sort direction: ${sortDirection === 'asc' ? 'ascending' : 'descending'}`}
-            >
-              <SortDirectionIcon direction={sortDirection} />
-            </button>
-            {isSortOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setIsSortOpen(false)}
-                />
-                <div
-                  ref={sortDropdownRef}
-                  tabIndex={-1}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      setSortHighlightedIndex(prev => prev < sortOptions.length - 1 ? prev + 1 : 0);
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setSortHighlightedIndex(prev => prev > 0 ? prev - 1 : sortOptions.length - 1);
-                    } else if (e.key === 'Enter') {
-                      e.preventDefault();
-                      setSortOption(sortOptions[sortHighlightedIndex].value as typeof sortOption);
-                      setIsSortOpen(false);
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setIsSortOpen(false);
-                    }
-                  }}
-                  className="themed-select-dropdown absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-gray-700 p-1 shadow-xl outline-none"
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Drone</label>
+              <div className="relative flex-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setIsDroneDropdownOpen((v) => !v)}
+                  className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
                 >
-                  {sortOptions.map((option, index) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setSortOption(option.value as typeof sortOption);
-                        setIsSortOpen(false);
-                      }}
-                      onMouseEnter={() => setSortHighlightedIndex(index)}
-                      className={`themed-select-option w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${
-                        sortOption === option.value ? 'font-medium' : ''
-                      } ${index === sortHighlightedIndex ? 'bg-drone-primary/20' : ''}`}
+                  <span className={`truncate ${selectedDrones.length > 0 ? 'text-gray-100' : 'text-gray-400'}`}>
+                    {selectedDrones.length > 0
+                      ? selectedDrones.map((k) => droneOptions.find((d) => d.key === k)?.label ?? k).join(', ')
+                      : 'All drones'}
+                  </span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9" /></svg>
+                </button>
+                {isDroneDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => { setIsDroneDropdownOpen(false); setDroneSearch(''); }}
+                    />
+                    <div
+                      ref={droneDropdownRef}
+                      className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
                     >
-                      {option.label}
-                    </button>
-                  ))}
+                      {droneOptions.length > 4 && (
+                        <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
+                          <input
+                            type="text"
+                            value={droneSearch}
+                            onChange={(e) => { setDroneSearch(e.target.value); setDroneHighlightedIndex(0); }}
+                            onKeyDown={(e) => {
+                              const sorted = getDroneSorted();
+                              if (e.key === 'ArrowDown') { e.preventDefault(); setDroneHighlightedIndex((prev) => prev < sorted.length - 1 ? prev + 1 : 0); }
+                              else if (e.key === 'ArrowUp') { e.preventDefault(); setDroneHighlightedIndex((prev) => prev > 0 ? prev - 1 : sorted.length - 1); }
+                              else if (e.key === 'Enter' && sorted.length > 0) {
+                                e.preventDefault();
+                                const item = sorted[droneHighlightedIndex];
+                                if (item) setSelectedDrones((prev) => prev.includes(item.key) ? prev.filter((k) => k !== item.key) : [...prev, item.key]);
+                              } else if (e.key === 'Escape') { e.preventDefault(); setIsDroneDropdownOpen(false); setDroneSearch(''); }
+                            }}
+                            placeholder="Search drones…"
+                            autoFocus
+                            className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
+                          />
+                        </div>
+                      )}
+                      <div className="overflow-auto flex-1">
+                        {(() => {
+                          const sorted = getDroneSorted();
+                          if (sorted.length === 0) return <p className="text-xs text-gray-500 px-3 py-2">No matching drones</p>;
+                          return sorted.map((drone, index) => {
+                            const isSelected = selectedDrones.includes(drone.key);
+                            return (
+                              <button
+                                key={drone.key}
+                                type="button"
+                                onClick={() => setSelectedDrones((prev) => isSelected ? prev.filter((k) => k !== drone.key) : [...prev, drone.key])}
+                                onMouseEnter={() => setDroneHighlightedIndex(index)}
+                                className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${isSelected ? 'bg-sky-500/20 text-gray-800 dark:text-sky-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                                  } ${index === droneHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-sky-500 bg-sky-500' : 'border-gray-400 dark:border-gray-600'
+                                  }`}>
+                                  {isSelected && (
+                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                  )}
+                                </span>
+                                <span className="truncate">{drone.label}</span>
+                              </button>
+                            );
+                          });
+                        })()}
+                        {selectedDrones.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedDrones([]); setDroneSearch(''); setIsDroneDropdownOpen(false); }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-white border-t border-gray-700"
+                          >
+                            Clear drone filter
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Battery</label>
+              <div className="relative flex-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setIsBatteryDropdownOpen((v) => !v)}
+                  className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
+                >
+                  <span className={`truncate ${selectedBatteries.length > 0 ? 'text-gray-100' : 'text-gray-400'}`}>
+                    {selectedBatteries.length > 0
+                      ? selectedBatteries.map((s) => getBatteryDisplayName(s)).join(', ')
+                      : 'All batteries'}
+                  </span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9" /></svg>
+                </button>
+                {isBatteryDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => { setIsBatteryDropdownOpen(false); setBatterySearch(''); }}
+                    />
+                    <div
+                      ref={batteryDropdownRef}
+                      className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
+                    >
+                      {batteryOptions.length > 4 && (
+                        <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
+                          <input
+                            type="text"
+                            value={batterySearch}
+                            onChange={(e) => { setBatterySearch(e.target.value); setBatteryHighlightedIndex(0); }}
+                            onKeyDown={(e) => {
+                              const sorted = getBatterySorted();
+                              if (e.key === 'ArrowDown') { e.preventDefault(); setBatteryHighlightedIndex((prev) => prev < sorted.length - 1 ? prev + 1 : 0); }
+                              else if (e.key === 'ArrowUp') { e.preventDefault(); setBatteryHighlightedIndex((prev) => prev > 0 ? prev - 1 : sorted.length - 1); }
+                              else if (e.key === 'Enter' && sorted.length > 0) {
+                                e.preventDefault();
+                                const item = sorted[batteryHighlightedIndex];
+                                if (item) setSelectedBatteries((prev) => prev.includes(item.value) ? prev.filter((k) => k !== item.value) : [...prev, item.value]);
+                              } else if (e.key === 'Escape') { e.preventDefault(); setIsBatteryDropdownOpen(false); setBatterySearch(''); }
+                            }}
+                            placeholder="Search batteries…"
+                            autoFocus
+                            className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
+                          />
+                        </div>
+                      )}
+                      <div className="overflow-auto flex-1">
+                        {(() => {
+                          const sorted = getBatterySorted();
+                          if (sorted.length === 0) return <p className="text-xs text-gray-500 px-3 py-2">No matching batteries</p>;
+                          return sorted.map((bat, index) => {
+                            const isSelected = selectedBatteries.includes(bat.value);
+                            return (
+                              <button
+                                key={bat.value}
+                                type="button"
+                                onClick={() => setSelectedBatteries((prev) => isSelected ? prev.filter((k) => k !== bat.value) : [...prev, bat.value])}
+                                onMouseEnter={() => setBatteryHighlightedIndex(index)}
+                                className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${isSelected ? 'bg-amber-500/20 text-gray-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                                  } ${index === batteryHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-amber-500 bg-amber-500' : 'border-gray-400 dark:border-gray-600'
+                                  }`}>
+                                  {isSelected && (
+                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                  )}
+                                </span>
+                                <span className="truncate">{bat.label}</span>
+                              </button>
+                            );
+                          });
+                        })()}
+                        {selectedBatteries.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedBatteries([]); setBatterySearch(''); setIsBatteryDropdownOpen(false); }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-white border-t border-gray-700"
+                          >
+                            Clear battery filter
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Tag filter */}
+            {allTags.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Tags</label>
+                <div className="relative flex-1 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsTagDropdownOpen((v) => !v)}
+                    className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
+                  >
+                    <span className={`truncate ${selectedTags.length > 0 ? 'text-gray-100' : 'text-gray-400'}`}>
+                      {selectedTags.length > 0 ? selectedTags.join(', ') : 'All tags'}
+                    </span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  {isTagDropdownOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => { setIsTagDropdownOpen(false); setTagSearch(''); }}
+                      />
+                      <div
+                        ref={tagDropdownRef}
+                        className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
+                      >
+                        {/* Search input */}
+                        <div className="px-2 pt-2 pb-1 border-b border-gray-700 flex-shrink-0">
+                          <input
+                            type="text"
+                            value={tagSearch}
+                            onChange={(e) => { setTagSearch(e.target.value); setTagHighlightedIndex(0); }}
+                            onKeyDown={(e) => {
+                              const filtered = allTags.filter((tag) => tag.toLowerCase().includes(tagSearch.toLowerCase()));
+                              const sorted = [...filtered].sort((a, b) => {
+                                const aSelected = selectedTags.includes(a);
+                                const bSelected = selectedTags.includes(b);
+                                if (aSelected && !bSelected) return -1;
+                                if (!aSelected && bSelected) return 1;
+                                return a.localeCompare(b);
+                              });
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setTagHighlightedIndex(prev => prev < sorted.length - 1 ? prev + 1 : 0);
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setTagHighlightedIndex(prev => prev > 0 ? prev - 1 : sorted.length - 1);
+                              } else if (e.key === 'Enter' && sorted.length > 0) {
+                                e.preventDefault();
+                                const tag = sorted[tagHighlightedIndex];
+                                if (tag) {
+                                  setSelectedTags((prev) =>
+                                    prev.includes(tag)
+                                      ? prev.filter((t) => t !== tag)
+                                      : [...prev, tag]
+                                  );
+                                }
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                setIsTagDropdownOpen(false);
+                                setTagSearch('');
+                              }
+                            }}
+                            placeholder="Search tags…"
+                            autoFocus
+                            className="w-full bg-drone-dark text-xs text-gray-200 rounded px-2 py-1 border border-gray-600 focus:border-drone-primary focus:outline-none placeholder-gray-500"
+                          />
+                        </div>
+                        <div className="overflow-auto flex-1">
+                          {(() => {
+                            const filtered = allTags.filter((tag) => tag.toLowerCase().includes(tagSearch.toLowerCase()));
+                            if (filtered.length === 0) {
+                              return <p className="text-xs text-gray-500 px-3 py-2">No matching tags</p>;
+                            }
+                            // Sort: selected tags first, then unselected alphabetically
+                            const sorted = [...filtered].sort((a, b) => {
+                              const aSelected = selectedTags.includes(a);
+                              const bSelected = selectedTags.includes(b);
+                              if (aSelected && !bSelected) return -1;
+                              if (!aSelected && bSelected) return 1;
+                              return a.localeCompare(b);
+                            });
+                            return sorted.map((tag, index) => {
+                              const isSelected = selectedTags.includes(tag);
+                              return (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTags((prev) =>
+                                      isSelected
+                                        ? prev.filter((t) => t !== tag)
+                                        : [...prev, tag]
+                                    );
+                                  }}
+                                  onMouseEnter={() => setTagHighlightedIndex(index)}
+                                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${isSelected
+                                    ? 'bg-violet-500/20 text-gray-800 dark:text-violet-200'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                                    } ${index === tagHighlightedIndex && !isSelected ? 'bg-gray-200/50 dark:bg-gray-700/50' : ''}`}
+                                >
+                                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-violet-500 bg-violet-500' : 'border-gray-400 dark:border-gray-600'
+                                    }`}>
+                                    {isSelected && (
+                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    )}
+                                  </span>
+                                  {tag}
+                                </button>
+                              );
+                            });
+                          })()}
+                          {selectedTags.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTags([]);
+                                setTagSearch('');
+                                setIsTagDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-white border-t border-gray-700"
+                            >
+                              Clear tag filter
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </>
+              </div>
             )}
-          </div>
-        </div>
 
-        {/* Filtered count and Clear filters on same line */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400">
-            {filteredFlights.length} of {flights.length} logs selected
-          </span>
-          <button
-            onClick={() => {
-              setDateRange(undefined);
-              setSelectedDrones([]);
-              setSelectedBatteries([]);
-              setDurationFilterMin(null);
-              setDurationFilterMax(null);
-              setAltitudeFilterMin(null);
-              setAltitudeFilterMax(null);
-              setDistanceFilterMin(null);
-              setDistanceFilterMax(null);
-              setSelectedTags([]);
-              setIsFilterInverted(false);
-              setMapAreaFilterEnabled(false);
-              setSearchQuery('');
-            }}
-            className="text-xs text-gray-400 hover:text-white"
-          >
-            Clear filters
-          </button>
-        </div>
-
-        {/* Export and Delete Filtered Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Export Dropdown */}
-          <div className="relative flex-1">
-            <button
-              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-              disabled={filteredFlights.length === 0}
-              className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors w-full ${
-                filteredFlights.length > 0
-                  ? 'bg-drone-primary/20 text-drone-primary hover:bg-drone-primary/30'
-                  : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              Export filtered
-            </button>
-
-            {isExportDropdownOpen && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setIsExportDropdownOpen(false)} 
+            {/* Search filter and Sort */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">Search</label>
+              <div className="relative flex-1 min-w-0">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by name..."
+                  className="input w-full text-xs h-8 px-3"
+                  aria-label="Search flights"
                 />
-                <div
-                  ref={exportDropdownRef}
-                  tabIndex={-1}
-                  onKeyDown={(e) => {
-                    const exportOptions = [
-                      { id: 'csv', label: 'CSV', ext: 'csv', disabled: false },
-                      { id: 'json', label: 'JSON', ext: 'json', disabled: false },
-                      { id: 'gpx', label: 'GPX', ext: 'gpx', disabled: false },
-                      { id: 'kml', label: 'KML', ext: 'kml', disabled: false },
-                      { id: 'summary', label: 'Summary', ext: 'csv', disabled: filteredFlights.length <= 1 },
-                    ];
-                    const enabledOptions = exportOptions.filter(o => !o.disabled);
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      setExportHighlightedIndex(prev => {
-                        let next = prev + 1;
-                        while (next < exportOptions.length && exportOptions[next].disabled) next++;
-                        return next >= exportOptions.length ? enabledOptions.length > 0 ? exportOptions.findIndex(o => !o.disabled) : 0 : next;
-                      });
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setExportHighlightedIndex(prev => {
-                        let next = prev - 1;
-                        while (next >= 0 && exportOptions[next].disabled) next--;
-                        if (next < 0) {
-                          // Find last enabled option
-                          for (let i = exportOptions.length - 1; i >= 0; i--) {
-                            if (!exportOptions[i].disabled) return i;
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    aria-label="Clear search"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  </button>
+                )}
+              </div>
+              {/* Sort buttons */}
+              <div className="relative flex items-center flex-shrink-0">
+                <button
+                  ref={sortButtonRef}
+                  type="button"
+                  onClick={() => setIsSortOpen((open) => !open)}
+                  className="h-8 w-8 rounded-l-md border border-gray-700/70 bg-drone-dark text-gray-300 hover:text-white hover:border-gray-600 transition-colors flex items-center justify-center"
+                  aria-label={`Sort flights: ${activeSortLabel}`}
+                >
+                  <SortIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'))}
+                  className="h-8 w-7 rounded-r-md border border-l-0 border-gray-700/70 bg-drone-dark text-gray-300 hover:text-white hover:border-gray-600 transition-colors flex items-center justify-center"
+                  aria-label={`Toggle sort direction: ${sortDirection === 'asc' ? 'ascending' : 'descending'}`}
+                >
+                  <SortDirectionIcon direction={sortDirection} />
+                </button>
+                {isSortOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsSortOpen(false)}
+                    />
+                    <div
+                      ref={sortDropdownRef}
+                      tabIndex={-1}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setSortHighlightedIndex(prev => prev < sortOptions.length - 1 ? prev + 1 : 0);
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setSortHighlightedIndex(prev => prev > 0 ? prev - 1 : sortOptions.length - 1);
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          setSortOption(sortOptions[sortHighlightedIndex].value as typeof sortOption);
+                          setIsSortOpen(false);
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setIsSortOpen(false);
+                        }
+                      }}
+                      className="themed-select-dropdown absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-gray-700 p-1 shadow-xl outline-none"
+                    >
+                      {sortOptions.map((option, index) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setSortOption(option.value as typeof sortOption);
+                            setIsSortOpen(false);
+                          }}
+                          onMouseEnter={() => setSortHighlightedIndex(index)}
+                          className={`themed-select-option w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${sortOption === option.value ? 'font-medium' : ''
+                            } ${index === sortHighlightedIndex ? 'bg-drone-primary/20' : ''}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Filtered count and Clear filters on same line */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                {filteredFlights.length} of {flights.length} logs selected
+              </span>
+              <button
+                onClick={() => {
+                  setDateRange(undefined);
+                  setSelectedDrones([]);
+                  setSelectedBatteries([]);
+                  setDurationFilterMin(null);
+                  setDurationFilterMax(null);
+                  setAltitudeFilterMin(null);
+                  setAltitudeFilterMax(null);
+                  setDistanceFilterMin(null);
+                  setDistanceFilterMax(null);
+                  setSelectedTags([]);
+                  setIsFilterInverted(false);
+                  setMapAreaFilterEnabled(false);
+                  setSearchQuery('');
+                }}
+                className="text-xs text-gray-400 hover:text-white"
+              >
+                Clear filters
+              </button>
+            </div>
+
+            {/* Export and Delete Filtered Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Export Dropdown */}
+              <div className="relative flex-1">
+                <button
+                  onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                  disabled={filteredFlights.length === 0}
+                  className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors w-full ${filteredFlights.length > 0
+                    ? 'bg-drone-primary/20 text-drone-primary hover:bg-drone-primary/30'
+                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                    }`}
+                >
+                  Export filtered
+                </button>
+
+                {isExportDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsExportDropdownOpen(false)}
+                    />
+                    <div
+                      ref={exportDropdownRef}
+                      tabIndex={-1}
+                      onKeyDown={(e) => {
+                        const exportOptions = [
+                          { id: 'csv', label: 'CSV', ext: 'csv', disabled: false },
+                          { id: 'json', label: 'JSON', ext: 'json', disabled: false },
+                          { id: 'gpx', label: 'GPX', ext: 'gpx', disabled: false },
+                          { id: 'kml', label: 'KML', ext: 'kml', disabled: false },
+                          { id: 'summary', label: 'Summary CSV', ext: 'csv', disabled: filteredFlights.length <= 1 },
+                          { id: 'html_report', label: 'HTML Report', ext: 'html', disabled: false },
+                        ];
+                        const enabledOptions = exportOptions.filter(o => !o.disabled);
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setExportHighlightedIndex(prev => {
+                            let next = prev + 1;
+                            while (next < exportOptions.length && exportOptions[next].disabled) next++;
+                            return next >= exportOptions.length ? enabledOptions.length > 0 ? exportOptions.findIndex(o => !o.disabled) : 0 : next;
+                          });
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setExportHighlightedIndex(prev => {
+                            let next = prev - 1;
+                            while (next >= 0 && exportOptions[next].disabled) next--;
+                            if (next < 0) {
+                              // Find last enabled option
+                              for (let i = exportOptions.length - 1; i >= 0; i--) {
+                                if (!exportOptions[i].disabled) return i;
+                              }
+                              return 0;
+                            }
+                            return next;
+                          });
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const opt = exportOptions[exportHighlightedIndex];
+                          if (!opt.disabled) {
+                            setIsExportDropdownOpen(false);
+                            if (opt.id === 'html_report') {
+                              setShowHtmlReportModal(true);
+                            } else if (opt.id === 'summary') {
+                              handleSummaryExport();
+                            } else {
+                              handleBulkExport(opt.id, opt.ext);
+                            }
                           }
-                          return 0;
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setIsExportDropdownOpen(false);
                         }
-                        return next;
-                      });
-                    } else if (e.key === 'Enter') {
+                      }}
+                      className="themed-select-dropdown absolute left-0 top-full mt-2 w-full border border-gray-700 rounded-lg shadow-xl z-50 outline-none"
+                    >
+                      <div className="p-2">
+                        {[
+                          { id: 'csv', label: 'CSV', ext: 'csv', disabled: false },
+                          { id: 'json', label: 'JSON', ext: 'json', disabled: false },
+                          { id: 'gpx', label: 'GPX', ext: 'gpx', disabled: false },
+                          { id: 'kml', label: 'KML', ext: 'kml', disabled: false },
+                          { id: 'summary', label: 'Summary CSV', ext: 'csv', disabled: filteredFlights.length <= 1 },
+                          { id: 'html_report', label: 'HTML Report', ext: 'html', disabled: false },
+                        ].map((opt, index) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              if (opt.disabled) return;
+                              setIsExportDropdownOpen(false);
+                              if (opt.id === 'html_report') {
+                                setShowHtmlReportModal(true);
+                              } else if (opt.id === 'summary') {
+                                handleSummaryExport();
+                              } else {
+                                handleBulkExport(opt.id, opt.ext);
+                              }
+                            }}
+                            onMouseEnter={() => !opt.disabled && setExportHighlightedIndex(index)}
+                            disabled={opt.disabled}
+                            className={`themed-select-option w-full text-left px-3 py-2 text-sm rounded transition-colors ${opt.disabled
+                              ? 'text-gray-500 cursor-not-allowed'
+                              : index === exportHighlightedIndex ? 'bg-drone-primary/20' : ''
+                              }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Delete Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmBulkDelete(true);
+                }}
+                disabled={filteredFlights.length === 0}
+                className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${filteredFlights.length > 0
+                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                  : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  }`}
+              >
+                Delete filtered
+              </button>
+            </div>
+
+            {/* Bulk Delete Confirmation */}
+            {confirmBulkDelete && filteredFlights.length > 0 && (
+              <div
+                className="flex items-center gap-2 text-xs"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-gray-400">
+                  Delete {filteredFlights.length} filtered flight{filteredFlights.length !== 1 ? 's' : ''}?
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBulkDelete();
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmBulkDelete(false);
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Untag and Bulk Tag Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Untag Filtered Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmUntag(true);
+                }}
+                disabled={filteredFlights.length === 0 || selectedTags.length === 0}
+                className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${filteredFlights.length > 0 && selectedTags.length > 0
+                  ? 'bg-orange-500/20 text-orange-600 hover:bg-orange-500/30'
+                  : 'bg-gray-500/10 text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                Untag filtered
+              </button>
+
+              {/* Bulk Tag Filtered Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowBulkTagInput(true);
+                }}
+                disabled={filteredFlights.length === 0}
+                className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${filteredFlights.length > 0
+                  ? 'bg-violet-500/20 text-violet-600 hover:bg-violet-500/30'
+                  : 'bg-gray-500/10 text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                Bulk tag filtered
+              </button>
+            </div>
+
+            {/* Untag Confirmation */}
+            {confirmUntag && filteredFlights.length > 0 && selectedTags.length > 0 && (
+              <div
+                className="flex items-center gap-2 text-xs"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-gray-400">
+                  Remove tag{selectedTags.length !== 1 ? 's' : ''} "{selectedTags.join(', ')}" from filtered flights?
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBulkUntag();
+                  }}
+                  className="text-xs text-orange-400 hover:text-orange-300"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmUntag(false);
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Bulk Tag Input */}
+            {showBulkTagInput && filteredFlights.length > 0 && (
+              <div
+                className="flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="text"
+                  value={bulkTagInput}
+                  onChange={(e) => setBulkTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
                       e.preventDefault();
-                      const opt = exportOptions[exportHighlightedIndex];
-                      if (!opt.disabled) {
-                        setIsExportDropdownOpen(false);
-                        if (opt.id === 'summary') {
-                          handleSummaryExport();
-                        } else {
-                          handleBulkExport(opt.id, opt.ext);
-                        }
-                      }
+                      handleBulkTag();
                     } else if (e.key === 'Escape') {
                       e.preventDefault();
-                      setIsExportDropdownOpen(false);
+                      setShowBulkTagInput(false);
+                      setBulkTagInput('');
                     }
                   }}
-                  className="themed-select-dropdown absolute left-0 top-full mt-2 w-full border border-gray-700 rounded-lg shadow-xl z-50 outline-none"
+                  placeholder="Enter tag name..."
+                  autoFocus
+                  className="input flex-1 text-xs h-7 px-2"
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBulkTag();
+                  }}
+                  className="text-xs text-violet-400 hover:text-violet-300"
                 >
-                  <div className="p-2">
-                    {[
-                      { id: 'csv', label: 'CSV', ext: 'csv', disabled: false },
-                      { id: 'json', label: 'JSON', ext: 'json', disabled: false },
-                      { id: 'gpx', label: 'GPX', ext: 'gpx', disabled: false },
-                      { id: 'kml', label: 'KML', ext: 'kml', disabled: false },
-                      { id: 'summary', label: 'Summary', ext: 'csv', disabled: filteredFlights.length <= 1 },
-                    ].map((opt, index) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => {
-                          if (opt.disabled) return;
-                          setIsExportDropdownOpen(false);
-                          if (opt.id === 'summary') {
-                            handleSummaryExport();
-                          } else {
-                            handleBulkExport(opt.id, opt.ext);
-                          }
-                        }}
-                        onMouseEnter={() => !opt.disabled && setExportHighlightedIndex(index)}
-                        disabled={opt.disabled}
-                        className={`themed-select-option w-full text-left px-3 py-2 text-sm rounded transition-colors ${
-                          opt.disabled 
-                            ? 'text-gray-500 cursor-not-allowed' 
-                            : index === exportHighlightedIndex ? 'bg-drone-primary/20' : ''
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
+                  OK
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowBulkTagInput(false);
+                    setBulkTagInput('');
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-200"
+                >
+                  Cancel
+                </button>
+              </div>
             )}
+
           </div>
-
-          {/* Delete Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setConfirmBulkDelete(true);
-            }}
-            disabled={filteredFlights.length === 0}
-            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${
-              filteredFlights.length > 0
-                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            Delete filtered
-          </button>
-        </div>
-
-        {/* Bulk Delete Confirmation */}
-        {confirmBulkDelete && filteredFlights.length > 0 && (
-          <div 
-            className="flex items-center gap-2 text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="text-gray-400">
-              Delete {filteredFlights.length} filtered flight{filteredFlights.length !== 1 ? 's' : ''}?
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleBulkDelete();
-              }}
-              className="text-xs text-red-400 hover:text-red-300"
-            >
-              Yes
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmBulkDelete(false);
-              }}
-              className="text-xs text-gray-400 hover:text-gray-200"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* Untag and Bulk Tag Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Untag Filtered Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setConfirmUntag(true);
-            }}
-            disabled={filteredFlights.length === 0 || selectedTags.length === 0}
-            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${
-              filteredFlights.length > 0 && selectedTags.length > 0
-                ? 'bg-orange-500/20 text-orange-600 hover:bg-orange-500/30'
-                : 'bg-gray-500/10 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            Untag filtered
-          </button>
-
-          {/* Bulk Tag Filtered Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowBulkTagInput(true);
-            }}
-            disabled={filteredFlights.length === 0}
-            className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex-1 ${
-              filteredFlights.length > 0
-                ? 'bg-violet-500/20 text-violet-600 hover:bg-violet-500/30'
-                : 'bg-gray-500/10 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            Bulk tag filtered
-          </button>
-        </div>
-
-        {/* Untag Confirmation */}
-        {confirmUntag && filteredFlights.length > 0 && selectedTags.length > 0 && (
-          <div 
-            className="flex items-center gap-2 text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="text-gray-400">
-              Remove tag{selectedTags.length !== 1 ? 's' : ''} "{selectedTags.join(', ')}" from filtered flights?
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleBulkUntag();
-              }}
-              className="text-xs text-orange-400 hover:text-orange-300"
-            >
-              Yes
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmUntag(false);
-              }}
-              className="text-xs text-gray-400 hover:text-gray-200"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* Bulk Tag Input */}
-        {showBulkTagInput && filteredFlights.length > 0 && (
-          <div 
-            className="flex items-center gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <input
-              type="text"
-              value={bulkTagInput}
-              onChange={(e) => setBulkTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleBulkTag();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setShowBulkTagInput(false);
-                  setBulkTagInput('');
-                }
-              }}
-              placeholder="Enter tag name..."
-              autoFocus
-              className="input flex-1 text-xs h-7 px-2"
-            />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleBulkTag();
-              }}
-              className="text-xs text-violet-400 hover:text-violet-300"
-            >
-              OK
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowBulkTagInput(false);
-                setBulkTagInput('');
-              }}
-              className="text-xs text-gray-400 hover:text-gray-200"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        </div>
         </div>
       </div>
 
       {/* Scrollable flight list */}
       <div className="flex-1 overflow-y-auto divide-y divide-gray-700/50">
-      {sortedFlights.map((flight) => (
-        <div
-          key={flight.id}
-          data-flight-id={flight.id}
-          onContextMenu={(e) => handleContextMenu(e, flight.id)}
-          onClick={(e) => {
-            setPreviewFlightId(null);
-            // CTRL+click (or Cmd+click on Mac) always navigates to flight details
-            if (e.ctrlKey || e.metaKey) {
-              setOverviewHighlightedFlightId(null);
-              selectFlight(flight.id);
-              onSelectFlight?.(flight.id);
-              return;
-            }
-            if (activeView === 'overview') {
-              // Single click in overview mode: scroll to map then highlight
-              const mapElement = document.getElementById('overview-cluster-map');
-              if (mapElement) {
-                smoothScrollToElement(mapElement, 800).then(() => {
+        {sortedFlights.map((flight) => (
+          <div
+            key={flight.id}
+            data-flight-id={flight.id}
+            onContextMenu={(e) => handleContextMenu(e, flight.id)}
+            onClick={(e) => {
+              setPreviewFlightId(null);
+              // CTRL+click (or Cmd+click on Mac) always navigates to flight details
+              if (e.ctrlKey || e.metaKey) {
+                setOverviewHighlightedFlightId(null);
+                selectFlight(flight.id);
+                onSelectFlight?.(flight.id);
+                return;
+              }
+              if (activeView === 'overview') {
+                // Single click in overview mode: scroll to map then highlight
+                const mapElement = document.getElementById('overview-cluster-map');
+                if (mapElement) {
+                  smoothScrollToElement(mapElement, 800).then(() => {
+                    setOverviewHighlightedFlightId(flight.id);
+                    onHighlightFlight?.(flight.id);
+                  });
+                } else {
                   setOverviewHighlightedFlightId(flight.id);
                   onHighlightFlight?.(flight.id);
-                });
+                }
               } else {
-                setOverviewHighlightedFlightId(flight.id);
-                onHighlightFlight?.(flight.id);
+                // Single click in flights mode: select and load flight
+                selectFlight(flight.id);
+                onSelectFlight?.(flight.id);
               }
-            } else {
-              // Single click in flights mode: select and load flight
-              selectFlight(flight.id);
-              onSelectFlight?.(flight.id);
-            }
-          }}
-          onDoubleClick={() => {
-            if (activeView === 'overview') {
-              // Double click in overview mode: navigate to flight details
-              setOverviewHighlightedFlightId(null);
-              selectFlight(flight.id);
-              onSelectFlight?.(flight.id);
-            }
-            // In flights mode, double-click does nothing extra (single click already loads)
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
+            }}
+            onDoubleClick={() => {
               if (activeView === 'overview') {
-                // Enter in overview mode: navigate to flight details
+                // Double click in overview mode: navigate to flight details
                 setOverviewHighlightedFlightId(null);
+                selectFlight(flight.id);
+                onSelectFlight?.(flight.id);
               }
-              selectFlight(flight.id);
-              onSelectFlight?.(flight.id);
-            }
-          }}
-          className={`w-full px-3 py-2 text-left cursor-pointer transition-colors duration-150 ${
-            (activeView === 'overview' 
+              // In flights mode, double-click does nothing extra (single click already loads)
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                if (activeView === 'overview') {
+                  // Enter in overview mode: navigate to flight details
+                  setOverviewHighlightedFlightId(null);
+                }
+                selectFlight(flight.id);
+                onSelectFlight?.(flight.id);
+              }
+            }}
+            className={`w-full px-3 py-2 text-left cursor-pointer transition-colors duration-150 ${(activeView === 'overview'
               ? overviewHighlightedFlightId === flight.id
               : (selectedFlightId === flight.id || previewFlightId === flight.id))
               ? 'bg-drone-primary/20 border-l-2 border-drone-primary'
               : 'border-l-2 border-transparent hover:bg-gray-700/30 hover:border-l-gray-500'
-          }`}
-        >
-          {/* Rename mode */}
-          {editingId === flight.id ? (
-            <div>
-              <input
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                className="input h-7 text-sm px-2 w-full"
-                placeholder="Flight name"
-              />
-              <div className="flex items-center gap-2 mt-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const name = draftName.trim();
-                    if (name.length > 0) {
-                      updateFlightName(flight.id, name);
-                    }
-                    setEditingId(null);
-                  }}
-                  className="text-xs text-drone-primary"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingId(null);
-                  }}
-                  className="text-xs text-gray-400"
-                >
-                  Cancel
-                </button>
+              }`}
+          >
+            {/* Rename mode */}
+            {editingId === flight.id ? (
+              <div>
+                <input
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="input h-7 text-sm px-2 w-full"
+                  placeholder="Flight name"
+                />
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const name = draftName.trim();
+                      if (name.length > 0) {
+                        updateFlightName(flight.id, name);
+                      }
+                      setEditingId(null);
+                    }}
+                    className="text-xs text-drone-primary"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(null);
+                    }}
+                    className="text-xs text-gray-400"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-1">
-              <p
-                className="text-sm text-gray-300 truncate flex-1 min-w-0"
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  setEditingId(flight.id);
-                  setDraftName(flight.displayName || flight.fileName);
-                  setConfirmDeleteId(null);
-                }}
-                title={[
-                  flight.displayName || flight.fileName,
-                  `Start: ${formatDateTime(flight.startTime)}`,
-                  `Duration: ${formatDuration(flight.durationSecs)}`,
-                  `Distance: ${formatDistance(flight.totalDistance, unitSystem)}`,
-                  `Max Altitude: ${formatAltitude(flight.maxAltitude, unitSystem)}`,
-                  flight.notes ? `Notes: ${flight.notes}` : null
-                ].filter(Boolean).join('\n')}
-              >
-                {flight.displayName || flight.fileName}
-              </p>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <button
-                  onClick={(e) => {
+            ) : (
+              <div className="flex items-center justify-between gap-1">
+                <p
+                  className="text-sm text-gray-300 truncate flex-1 min-w-0"
+                  onDoubleClick={(e) => {
                     e.stopPropagation();
                     setEditingId(flight.id);
                     setDraftName(flight.displayName || flight.fileName);
                     setConfirmDeleteId(null);
                   }}
-                  className="p-0.5 text-sky-400 hover:text-sky-300"
-                  title="Rename flight"
+                  title={[
+                    flight.displayName || flight.fileName,
+                    `Start: ${formatDateTime(flight.startTime)}`,
+                    `Duration: ${formatDuration(flight.durationSecs)}`,
+                    `Distance: ${formatDistance(flight.totalDistance, unitSystem)}`,
+                    `Max Altitude: ${formatAltitude(flight.maxAltitude, unitSystem)}`,
+                    flight.notes ? `Notes: ${flight.notes}` : null
+                  ].filter(Boolean).join('\n')}
                 >
-                  <PencilIcon />
+                  {flight.displayName || flight.fileName}
+                </p>
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(flight.id);
+                      setDraftName(flight.displayName || flight.fileName);
+                      setConfirmDeleteId(null);
+                    }}
+                    className="p-0.5 text-sky-400 hover:text-sky-300"
+                    title="Rename flight"
+                  >
+                    <PencilIcon />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDeleteId(flight.id);
+                    }}
+                    className="p-0.5 text-red-400 hover:text-red-300"
+                    title="Delete flight"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Subtitle: date + duration */}
+            {editingId !== flight.id && (
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                {formatDateTime(flight.startTime)}
+                {flight.durationSecs ? ` · ${formatDuration(flight.durationSecs)}` : ''}
+                {flight.totalDistance ? ` · ${formatDistance(flight.totalDistance, unitSystem)}` : ''}
+              </p>
+            )}
+
+            {/* Delete confirmation */}
+            {confirmDeleteId === flight.id && editingId !== flight.id && (
+              <div className="flex items-center gap-2 mt-1 text-xs">
+                <span className="text-gray-400">Delete?</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Add to blacklist before deleting (so sync won't re-import)
+                    if (flight.fileHash) {
+                      addToBlacklist(flight.fileHash);
+                    }
+                    deleteFlight(flight.id);
+                    setConfirmDeleteId(null);
+                  }}
+                  className="text-red-400"
+                >
+                  Yes
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setConfirmDeleteId(flight.id);
+                    setConfirmDeleteId(null);
                   }}
-                  className="p-0.5 text-red-400 hover:text-red-300"
-                  title="Delete flight"
+                  className="text-gray-400"
                 >
-                  <TrashIcon />
+                  No
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Subtitle: date + duration */}
-          {editingId !== flight.id && (
-            <p className="text-xs text-gray-500 mt-0.5 truncate">
-              {formatDateTime(flight.startTime)}
-              {flight.durationSecs ? ` · ${formatDuration(flight.durationSecs)}` : ''}
-              {flight.totalDistance ? ` · ${formatDistance(flight.totalDistance, unitSystem)}` : ''}
-            </p>
-          )}
-
-          {/* Delete confirmation */}
-          {confirmDeleteId === flight.id && editingId !== flight.id && (
-            <div className="flex items-center gap-2 mt-1 text-xs">
-              <span className="text-gray-400">Delete?</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Add to blacklist before deleting (so sync won't re-import)
-                  if (flight.fileHash) {
-                    addToBlacklist(flight.fileHash);
-                  }
-                  deleteFlight(flight.id);
-                  setConfirmDeleteId(null);
-                }}
-                className="text-red-400"
-              >
-                Yes
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmDeleteId(null);
-                }}
-                className="text-gray-400"
-              >
-                No
-              </button>
-            </div>
-          )}
-        </div>
-      ))}
-      {sortedFlights.length === 0 && (
-        <div className="p-4 text-center text-gray-500 text-xs">
-          No flights match the current filters.
-        </div>
-      )}
+            )}
+          </div>
+        ))}
+        {sortedFlights.length === 0 && (
+          <div className="p-4 text-center text-gray-500 text-xs">
+            No flights match the current filters.
+          </div>
+        )}
       </div>
 
       {/* Right-click Context Menu */}
@@ -2492,11 +2652,10 @@ export function FlightList({
             type="button"
             onClick={() => activeView !== 'overview' && handleContextGenerateFlyCard(contextMenu.flightId)}
             disabled={activeView === 'overview'}
-            className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-              activeView === 'overview'
-                ? 'text-gray-500 cursor-not-allowed'
-                : 'text-gray-300 hover:bg-gray-700/50'
-            }`}
+            className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${activeView === 'overview'
+              ? 'text-gray-500 cursor-not-allowed'
+              : 'text-gray-300 hover:bg-gray-700/50'
+              }`}
             title={activeView === 'overview' ? 'Select a flight first to generate FlyCard' : undefined}
           >
             <svg className={`w-4 h-4 ${activeView === 'overview' ? 'text-gray-600' : 'text-orange-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2703,14 +2862,14 @@ export function FlightList({
 
       {/* Notes Modal */}
       {notesModalFlightId !== null && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => {
             setNotesModalFlightId(null);
             setNotesInput('');
           }}
         >
-          <div 
+          <div
             className="bg-drone-dark rounded-xl p-5 shadow-xl border border-gray-700 w-[400px] max-w-[90vw]"
             onClick={(e) => e.stopPropagation()}
           >
@@ -2750,6 +2909,14 @@ export function FlightList({
           </div>
         </div>
       )}
+
+      {/* HTML Report Modal */}
+      <HtmlReportModal
+        isOpen={showHtmlReportModal}
+        onClose={() => setShowHtmlReportModal(false)}
+        onGenerate={handleHtmlReportExport}
+        flightCount={filteredFlights.length}
+      />
     </div>
   );
 }

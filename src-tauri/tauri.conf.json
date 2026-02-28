@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Drone Logbook",
+        "title": "Open Drone Log",
         "width": 1600,
         "height": 900,
         "minWidth": 1200,
