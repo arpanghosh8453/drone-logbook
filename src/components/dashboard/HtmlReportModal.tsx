@@ -138,21 +138,21 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
             onClick={onClose}
         >
             <div
-                className="bg-drone-surface border border-gray-700 dark:border-gray-600 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col"
+                className="bg-drone-secondary border border-gray-700 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col"
                 style={{ maxHeight: '85vh' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <div className="flex items-center justify-between px-6 py-3 border-b border-gray-700 flex-shrink-0">
                     <div>
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">HTML Report</h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        <h2 className="text-lg font-semibold text-white">HTML Report</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">
                             Configure and generate a printable flight report ({flightCount} flight{flightCount !== 1 ? 's' : ''})
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/30 transition-colors"
                         aria-label="Close"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -165,7 +165,7 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                 <div className="px-6 pt-4 pb-2 flex-shrink-0 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-gray-300 mb-1">
                                 Document Title <span className="text-red-400">*</span>
                             </label>
                             <input
@@ -173,11 +173,11 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                                 value={documentTitle}
                                 onChange={(e) => setDocumentTitle(e.target.value)}
                                 placeholder="e.g. Flight Regulation Report"
-                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-drone-dark text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-colors"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-drone-dark text-white placeholder-gray-500 focus:border-drone-primary focus:ring-1 focus:ring-drone-primary focus:outline-none transition-colors"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                            <label className="block text-xs font-medium text-gray-300 mb-1">
                                 Pilot Name <span className="text-red-400">*</span>
                             </label>
                             <input
@@ -185,27 +185,27 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                                 value={pilotName}
                                 onChange={(e) => setPilotName(e.target.value)}
                                 placeholder="Enter pilot name"
-                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-drone-dark text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none transition-colors"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-drone-dark text-white placeholder-gray-500 focus:border-drone-primary focus:ring-1 focus:ring-drone-primary focus:outline-none transition-colors"
                             />
                         </div>
                     </div>
 
                     {/* Validation error */}
                     {validationError && (
-                        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                        <div className="text-xs text-red-400 bg-red-900/40 border border-red-700/50 rounded-lg px-3 py-2">
                             {validationError}
                         </div>
                     )}
 
                     {/* Global controls */}
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Report Fields</span>
+                        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">Report Fields</span>
                         <div className="flex items-center gap-3 text-xs">
-                            <button onClick={selectAllGroups} className="text-sky-500 hover:text-sky-400 font-medium transition-colors">All</button>
-                            <span className="text-gray-400 dark:text-gray-600">/</span>
-                            <button onClick={selectNoneGroups} className="text-sky-500 hover:text-sky-400 font-medium transition-colors">None</button>
-                            <span className="text-gray-400 dark:text-gray-600">/</span>
-                            <button onClick={resetAll} className="text-sky-500 hover:text-sky-400 font-medium transition-colors">Reset</button>
+                            <button onClick={selectAllGroups} className="text-sky-400 hover:text-sky-300 font-medium transition-colors">All</button>
+                            <span className="text-gray-600">/</span>
+                            <button onClick={selectNoneGroups} className="text-sky-400 hover:text-sky-300 font-medium transition-colors">None</button>
+                            <span className="text-gray-600">/</span>
+                            <button onClick={resetAll} className="text-sky-400 hover:text-sky-300 font-medium transition-colors">Reset</button>
                         </div>
                     </div>
                 </div>
@@ -216,15 +216,15 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                         {FIELD_GROUPS.map((group) => (
                             <div
                                 key={group.name}
-                                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 overflow-hidden"
+                                className="rounded-xl border border-gray-700 bg-drone-surface/50 overflow-hidden"
                             >
                                 {/* Group header */}
-                                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{group.name}</span>
+                                <div className="flex items-center justify-between px-4 py-2 bg-drone-surface border-b border-gray-700/80">
+                                    <span className="text-xs font-semibold text-gray-300">{group.name}</span>
                                     <div className="flex items-center gap-2 text-[10px]">
-                                        <button onClick={() => setGroupAll(group.name)} className="text-sky-500 hover:text-sky-400 font-medium transition-colors">All</button>
-                                        <span className="text-gray-300 dark:text-gray-600">/</span>
-                                        <button onClick={() => setGroupNone(group.name)} className="text-sky-500 hover:text-sky-400 font-medium transition-colors">None</button>
+                                        <button onClick={() => setGroupAll(group.name)} className="text-sky-400 hover:text-sky-300 font-medium transition-colors">All</button>
+                                        <span className="text-gray-600">/</span>
+                                        <button onClick={() => setGroupNone(group.name)} className="text-sky-400 hover:text-sky-300 font-medium transition-colors">None</button>
                                     </div>
                                 </div>
 
@@ -239,7 +239,7 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                                                 onClick={() => toggleField(field.key)}
                                                 className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all ${fieldConfig[field.key]
                                                     ? 'bg-sky-500 border-sky-500'
-                                                    : 'border-gray-300 dark:border-gray-600 group-hover:border-sky-400'
+                                                    : 'border-gray-600 group-hover:border-sky-400'
                                                     }`}
                                             >
                                                 {fieldConfig[field.key] && (
@@ -248,7 +248,7 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                                                     </svg>
                                                 )}
                                             </div>
-                                            <span className="text-xs text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors select-none">
+                                            <span className="text-xs text-gray-400 group-hover:text-white transition-colors select-none">
                                                 {field.label}
                                             </span>
                                         </label>
@@ -260,19 +260,19 @@ export function HtmlReportModal({ isOpen, onClose, onGenerate, flightCount }: Ht
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <div className="flex items-center justify-end gap-3 px-6 py-3 border-t border-gray-700 flex-shrink-0">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/30 rounded-lg transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleGenerate}
                         disabled={!hasAnySelected}
-                        className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${hasAnySelected
-                            ? 'bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-500/25 hover:shadow-sky-500/40'
-                            : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+                        className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${hasAnySelected
+                            ? 'bg-drone-primary hover:bg-sky-500 text-white shadow-md shadow-sky-500/25 hover:shadow-sky-500/40'
+                            : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                             }`}
                     >
                         Generate Report
