@@ -49,6 +49,9 @@ The frontend automatically routes to the appropriate backend based on the deploy
 | `update_flight_notes` | `flight_id: i64, notes: Option<String>` | Update notes |
 | `compute_file_hash` | `file_path: String` | Compute SHA256 hash of a file |
 
+### Note on Exports
+File exports (CSV, JSON, GPX, KML, HTML Report) are generated entirely on the frontend (client-side) using `src/lib/exportUtils.ts` and `src/lib/htmlReportBuilder.ts`. There are no dedicated backend API endpoints for exports; the frontend requests data via `GET /api/flight_data` and packages the files locally.
+
 ---
 
 ## Telemetry and Data
@@ -88,6 +91,8 @@ The telemetry response includes these arrays (all keyed by index):
 | `rcUplink/rcDownlink` | `i32[]` | Signal quality metrics |
 | `satellites` | `i32[]` | GPS satellite count |
 | `distanceToHome` | `f64[]` | Distance from takeoff (meters) |
+| `isPhoto` | `bool[]` | Photo capture state per frame |
+| `isVideo` | `bool[]` | Video recording state per frame |
 
 ---
 
@@ -265,6 +270,8 @@ interface Flight {
   homeLat?: number;
   homeLon?: number;
   pointCount?: number;
+  photoCount?: number;
+  videoCount?: number;
   tags?: FlightTag[];
   notes?: string;
 }
@@ -292,6 +299,8 @@ interface OverviewStats {
   avgDistanceM: number;
   avgDurationSecs: number;
   totalDataPoints: number;
+  totalPhotos: number;
+  totalVideos: number;
 }
 ```
 

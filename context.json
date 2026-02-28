@@ -139,7 +139,11 @@
       "Supporter Badge: SHA-256 verified activation code system. Badge displayed in sidebar header between app title and settings icon. Activation modal in settings with Ko-fi donation instructions. Badge persisted to localStorage. Donation toggle locked when badge active. CSS animations (fadeIn, starPulse) with light mode overrides.",
       "Settings modal: Two-column layout (max-w-3xl). Left column: Units, Theme, Smart Tags, API Key. Right column: Donation status, Supporter Badge, App info, Backup/Restore, Delete all logs.",
       "App version: Displayed in settings. Reads from Tauri API (desktop) or Vite-injected __APP_VERSION__ (web). vite.config.ts reads version from src-tauri/tauri.conf.json with existsSync fallback to package.json for Docker builds.",
-      "Filter inversion: Uses AND logic for inverted filters (NOT A AND NOT B) — each filter condition individually inverted rather than inverting the combined result."
+      "Filter inversion: Uses AND logic for inverted filters (NOT A AND NOT B) — each filter condition individually inverted rather than inverting the combined result.",
+      "Photo/Video counts: Tracked per flight (photo_count, video_count columns in flights table) with automatic backfill from telemetry is_photo/is_video transitions. Displayed in overview stats and flight stats panel.",
+      "Map: Collapsible settings panel with color-by, aircraft toggle, media events toggle, tooltip toggle, and line thickness control (1-5, default 3). Settings persist in session.",
+      "HTML Report: Configurable print-ready flight regulation report. Modal lets user select document title, pilot name, and toggle field groups (General Info, Equipment, Flight Stats, Battery, Weather, Media). Report is A4-width, grouped by day with subtotals, and can be printed as PDF via Ctrl+P. Supports weather data, theme-responsive layout, and Open Dronelog branding. Field preferences and pilot name persist across sessions.",
+      "Filter refresh: Slider ranges (duration, altitude, distance) and dropdown selections (drones, batteries, tags, date range) auto-refresh after flight deletion to prevent stale/stuck filter values."
     ],
     "out_of_scope": [
       "Cloud sync",
@@ -159,6 +163,7 @@
         "src/components/dashboard/Overview.tsx",
         "src/components/dashboard/FlyCardGenerator.tsx",
         "src/components/dashboard/ManualEntryModal.tsx",
+        "src/components/dashboard/HtmlReportModal.tsx",
         "src/components/ui/Select.tsx",
         "src/components/charts/TelemetryCharts.tsx",
         "src/components/map/FlightMap.tsx"
@@ -169,6 +174,7 @@
       ],
       "state_store": "src/stores/flightStore.ts (includes batteryNameMap and droneNameMap synced to database via API, sidebarFilteredFlightIds for Overview filter sync, allTags, smartTagsEnabled, isRegenerating, addTag/removeTag/regenerateSmartTags actions, supporterBadgeActive persisted to localStorage, setSupporterBadge action, loadEquipmentNames action)",
       "api_adapter": "src/lib/api.ts",
+      "html_report": "src/lib/htmlReportBuilder.ts",
       "types": "src/types/index.ts",
       "env_types": "src/vite-env.d.ts"
     },

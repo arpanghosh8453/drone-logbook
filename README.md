@@ -101,7 +101,8 @@
 - **Overview Dashboard**: Aggregate stats, activity heatmap, pie charts by drone/battery/duration, cluster map, and top-flight highlights.
 - **Battery Health**: Per-battery health bars, serial renaming, and per-minute usage history with zoom.
 - **Maintenance Tracking**: Configurable thresholds with color-coded progress bars and date-based maintenance recording.
-- **Exports**: CSV, JSON, GPX, and KML export. FlyCard generator for shareable 1080x1080 social media images.
+- **Exports**: CSV, JSON, GPX, KML, and Summary CSV export. FlyCard generator for shareable 1080x1080 social media images.
+- **HTML Report**: Generate a configurable, print-ready flight regulation report (A4 layout) with selectable field groups, weather data, and day-by-day grouping. Can be printed as PDF via Ctrl+P. Pilot name and field preferences can be customized and will persist across sessions.
 - **Manual Flight Entry**: Record flights without log files with optional coordinates and metadata.
 - **Backup & Restore**: Export/import full database across desktop and Docker instances.
 

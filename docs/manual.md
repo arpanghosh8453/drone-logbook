@@ -40,6 +40,7 @@ Drone Logbook is a high-performance application for analyzing drone flight logs.
 | **Telemetry Analysis** | Comprehensive charts for all flight data |
 | **Smart Tagging** | Automatic descriptive tags based on flight characteristics |
 | **Advanced Filtering** | Powerful filtering, search, and sorting options |
+| **Photo/Video Tracking** | Automatic detection and counting of media captures |
 | **Battery Tracking** | Health monitoring and maintenance scheduling |
 | **Manual Entry** | Record flights without log files |
 | **Multiple Exports** | Export to CSV, JSON, GPX, and KML formats |
@@ -393,6 +394,8 @@ When a flight is selected, the stats bar shows key metrics:
 | **Drone Model** | Aircraft used |
 | **Battery** | Battery serial and health indicators |
 | **Home Location** | Takeoff coordinates |
+| **Photos** | Number of photo captures detected |
+| **Videos** | Number of video recordings detected |
 
 ### Weather Data
 
@@ -488,6 +491,9 @@ You can customize which telemetry fields are displayed in each chart category:
 | **Show Aircraft** | Toggle the 3D aircraft marker |
 | **Show Media** | Display photo/video capture points on the path |
 | **Tooltip** | Toggle hover information display |
+| **Line Thickness** | Adjust flight path line width (1-5, default 3) |
+
+All map display options are grouped in a collapsible settings panel. Click the settings gear to expand or collapse.
 
 #### Color By Options
 
@@ -550,6 +556,8 @@ Switch to Overview mode using the toggle at the top of the sidebar.
 - Total Distance
 - Total Time
 - Data Points
+- Total Photos
+- Total Videos
 
 #### Secondary Stats (Smaller Cards)
 
@@ -689,6 +697,26 @@ From the flight list, you can export all filtered flights:
 2. Click the export button in the flight list header
 3. Choose format
 4. Files are packaged into a ZIP archive
+
+### HTML Report
+
+Generate a configurable, print-ready flight regulation report:
+
+1. From the bulk export dropdown, select **HTML Report**
+2. In the modal, set:
+   - **Document Title** (default: "Flight Regulation Report")
+   - **Pilot Name** (remembered for future sessions)
+3. Select which field groups to include:
+   - General Info, Equipment, Flight Stats, Battery, Weather, Media
+4. Click **Generate Report** to save the HTML file
+
+The generated report features:
+- A4-width layout optimized for printing
+- Flights grouped by day with subtotals and a grand total
+- Weather data for each flight (if available)
+
+> [!TIP]
+> The HTML report is print-ready. Open it in any browser and press **Ctrl+P** (or Cmd+P on Mac) to print or save as PDF.
 
 ### Export Contents
 
