@@ -422,7 +422,7 @@ If you find this project helpful, please consider:
 
 ☕ Buying me a coffee if you'd like to contribute to its maintenance and future development.
 
-<img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi">
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/arpandesign)
 
 ## License
 
