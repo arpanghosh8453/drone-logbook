@@ -1577,7 +1577,7 @@ pub async fn start_server(data_dir: PathBuf) -> Result<(), Box<dyn std::error::E
     let port = std::env::var("PORT").unwrap_or_else(|_| "3001".to_string());
     let addr = format!("{}:{}", host, port);
 
-    log::info!("Starting Drone Logbook web server on {}", addr);
+    log::info!("Starting Open DroneLog web server on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, router).await?;

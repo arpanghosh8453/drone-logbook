@@ -1456,44 +1456,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "drone-logbook"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.22.1",
- "chrono",
- "cron",
- "dirs 5.0.1",
- "dji-log-parser",
- "duckdb",
- "env_logger",
- "flate2",
- "log",
- "reqwest 0.12.28",
- "reverse_geocoder",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-http",
- "tauri-plugin-log",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tauri-plugin-window-state",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-cron-scheduler",
- "tower-http 0.5.2",
- "uuid",
-]
-
-[[package]]
 name = "dtoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3583,6 +3545,44 @@ dependencies = [
  "is-wsl",
  "libc",
  "pathdiff",
+]
+
+[[package]]
+name = "open-dronelog"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "cron",
+ "dirs 5.0.1",
+ "dji-log-parser",
+ "duckdb",
+ "env_logger",
+ "flate2",
+ "log",
+ "reqwest 0.12.28",
+ "reverse_geocoder",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-http",
+ "tauri-plugin-log",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-window-state",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-cron-scheduler",
+ "tower-http 0.5.2",
+ "uuid",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Drone Logbook",
+  "productName": "Open DroneLog",
   "version": "2.20.1",
   "identifier": "com.drone-logbook",
   "build": {

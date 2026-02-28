@@ -1,4 +1,4 @@
-//! Drone Logbook - Backend
+//! Open DroneLog - Backend
 //!
 //! A high-performance application for analyzing DJI drone flight logs.
 //! Supports two build modes:
@@ -1096,7 +1096,7 @@ mod tauri_app {
             .setup(|app| {
                 let db = init_database(app.handle())?;
                 app.manage(AppState { db: Arc::new(db) });
-                log::info!("Drone Logbook initialized successfully");
+                log::info!("Open DroneLog initialized successfully");
                 Ok(())
             })
             .on_window_event(|window, event| {
@@ -1169,7 +1169,7 @@ mod tauri_app {
                 regenerate_all_smart_tags,
             ])
             .run(tauri::generate_context!())
-            .expect("Failed to run Drone Logbook");
+            .expect("Failed to run Open DroneLog");
     }
 }
 

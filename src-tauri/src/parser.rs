@@ -57,7 +57,7 @@ pub enum ParserError {
     #[error("Parsing timed out after {0} seconds — file may be corrupt or unsupported")]
     Timeout(u64),
 
-    #[error("Incompatible file format — only DJI flight logs (.txt), Litchi CSV exports, and Drone Logbook CSV exports are supported")]
+    #[error("Incompatible file format — only DJI flight logs (.txt), Litchi CSV exports, and Open DroneLog CSV exports are supported")]
     IncompatibleFile,
 }
 

@@ -1,8 +1,8 @@
 [package]
-name = "drone-logbook"
+name = "open-dronelog"
 version = "0.1.0"
-description = "Drone Logbook — A high-performance drone flight log analyzer"
-authors = ["Drone Logbook Contributors"]
+description = "Open DroneLog — A high-performance drone flight log analyzer"
+authors = ["Open DroneLog Contributors"]
 edition = "2021"
 rust-version = "1.70"
 license = "AGPL-3.0-only"
