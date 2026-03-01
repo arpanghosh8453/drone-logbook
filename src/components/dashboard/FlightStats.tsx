@@ -4,7 +4,7 @@
  */
 
 import type { FlightDataResponse } from '@/types';
-import { isWebMode, downloadFile } from '@/lib/api';
+import { isWebMode, downloadFile, getFlightData } from '@/lib/api';
 import { buildCsv, buildJson, buildGpx, buildKml } from '@/lib/exportUtils';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { WeatherModal } from './WeatherModal';
@@ -114,19 +114,22 @@ export function FlightStats({ data }: FlightStatsProps) {
         .replace(/^_+|_+$/g, '')
         .slice(0, 80);
 
+      // Fetch full-resolution data for export (display data is downsampled to ~5000 points)
+      const fullData = await getFlightData(flight.id);
+
       let content = '';
       switch (format) {
         case 'csv':
-          content = buildCsv(data);
+          content = buildCsv(fullData);
           break;
         case 'json':
-          content = buildJson(data);
+          content = buildJson(fullData);
           break;
         case 'gpx':
-          content = buildGpx(data);
+          content = buildGpx(fullData);
           break;
         case 'kml':
-          content = buildKml(data);
+          content = buildKml(fullData);
           break;
         default:
           return;

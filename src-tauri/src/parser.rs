@@ -699,8 +699,18 @@ impl<'a> LogParser<'a> {
             let battery = &frame.battery;
             let rc = &frame.rc;
 
-            let current_timestamp_ms = if osd.fly_time > 0.0 {
+            // fly_time from DJI logs often has only ~1-second resolution:
+            // e.g., fly_time=1.0 for all 10 frames in that second.
+            // We must ensure unique, monotonically increasing timestamps so that
+            // sub-second data is preserved during insertion.
+            let fly_time_ms = if osd.fly_time > 0.0 {
                 (osd.fly_time * 1000.0) as i64
+            } else {
+                0
+            };
+            // Use fly_time when it advances past our counter, otherwise keep incrementing
+            let current_timestamp_ms = if fly_time_ms > timestamp_ms {
+                fly_time_ms
             } else {
                 timestamp_ms
             };
@@ -804,7 +814,7 @@ impl<'a> LogParser<'a> {
 
             points.push(point);
 
-            // Increment timestamp using computed interval
+            // Always advance by fallback interval to ensure next frame gets a unique timestamp
             timestamp_ms = current_timestamp_ms + fallback_interval_ms;
         }
 

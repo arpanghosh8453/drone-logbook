@@ -265,10 +265,7 @@ impl Database {
 
                 -- Camera state
                 is_photo        BOOLEAN,
-                is_video        BOOLEAN,
-                
-                -- Composite primary key for efficient range queries
-                PRIMARY KEY (flight_id, timestamp_ms)
+                is_video        BOOLEAN
             );
 
             -- Index for time-range queries within a flight
@@ -752,8 +749,7 @@ impl Database {
                 rc_throttle     FLOAT,
                 rc_rudder       FLOAT,
                 is_photo        BOOLEAN,
-                is_video        BOOLEAN,
-                PRIMARY KEY (flight_id, timestamp_ms)
+                is_video        BOOLEAN
             );
             
             INSERT INTO telemetry_reordered SELECT {} FROM telemetry;
@@ -838,13 +834,8 @@ impl Database {
 
         let mut inserted = 0usize;
         let mut skipped = 0usize;
-        let mut seen_timestamps: HashSet<i64> = HashSet::with_capacity(points.len());
 
         for point in points {
-            if !seen_timestamps.insert(point.timestamp_ms) {
-                skipped += 1;
-                continue;
-            }
             // Serialize cell_voltages to JSON string for storage
             let cell_voltages_json: Option<String> = point.cell_voltages.as_ref().map(|v| {
                 serde_json::to_string(v).unwrap_or_else(|_| "[]".to_string())
@@ -1058,8 +1049,9 @@ impl Database {
     /// Get flight telemetry with automatic downsampling for large datasets.
     ///
     /// Strategy:
-    /// - If points < 5000: return raw data
-    /// - If points >= 5000: group by 1-second intervals, averaging values
+    /// - If max_points is None: return all raw data (for export)
+    /// - If points <= max_points: return raw data
+    /// - If points > max_points: group by time-bucket intervals, averaging values
     /// - This keeps the frontend responsive while preserving data trends
     ///
     /// `known_point_count` avoids an extra COUNT query when the flight metadata
@@ -1071,7 +1063,14 @@ impl Database {
         known_point_count: Option<i64>,
     ) -> Result<Vec<TelemetryRecord>, DatabaseError> {
         let conn = self.conn.lock().unwrap();
-        let max_points = max_points.unwrap_or(5000);
+
+        // None = return all raw data (for export); Some(n) = downsample for display
+        if max_points.is_none() {
+            log::debug!("Returning all raw telemetry points for flight {} (export mode)", flight_id);
+            return self.query_raw_telemetry(&conn, flight_id);
+        }
+
+        let max_points = max_points.unwrap();
 
         // Use known count or fall back to a COUNT query
         let point_count = match known_point_count {

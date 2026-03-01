@@ -232,9 +232,10 @@ export function buildCsv(data: FlightDataResponse): string {
     const lat = track ? track[1] : latSeries[index];
     const lng = track ? track[0] : lngSeries[index];
     const alt = track ? track[2] : null;
-    // telemetry.time is already in seconds (converted from ms in backend)
+    // telemetry.time is in seconds (converted from ms in backend)
+    // Preserve sub-second resolution: 0.0, 0.1, 0.2... for 10Hz data
     const values = [
-      String(Math.round(time)),
+      time % 1 === 0 ? String(time) : time.toFixed(1),
       formatCoord(lat),                              // lat - full precision (DOUBLE)
       formatCoord(lng),                              // lng - full precision (DOUBLE)
       formatNum(alt, 2),                             // alt_m
