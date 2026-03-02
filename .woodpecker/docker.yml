@@ -8,7 +8,7 @@ when:
 
 steps:
   publish:
-    image: docker.io/woodpeckerci/plugin-docker-buildx:6.0.3
+    image: codeberg.org/woodpecker-plugins/docker-buildx:6.0.3
     settings:
       dockerfile: *dockerfile
       platforms: linux/amd64,linux/arm64
