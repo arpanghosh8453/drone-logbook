@@ -36,7 +36,14 @@
     "flightPath": "비행 경로",
     "dragToResize": "드래그하여 크기 조절. 왼쪽으로 당기면 텔레메트리 패널이 닫힙니다.",
     "noFlightSelected": "비행이 선택되지 않았습니다",
-    "noFlightDescription": "드론 비행 로그를 가져오거나 사이드바에서 기존 비행을 선택하여 텔레메트리 데이터와 비행 경로를 확인하세요."
+    "noFlightDescription": "드론 비행 로그를 가져오거나 사이드바에서 기존 비행을 선택하여 텔레메트리 데이터와 비행 경로를 확인하세요.",
+    "flightMessages": "비행 메시지",
+    "viewFlightMessages": "비행 메시지 보기",
+    "messagesColTime": "시간",
+    "messagesColFlight": "비행 시간",
+    "messagesColMessage": "메시지",
+    "messagesEmpty": "이 비행에 대한 메시지가 없습니다",
+    "messagesClose": "닫기"
   },
   "flightList": {
     "anyDate": "모든 날짜",

@@ -36,7 +36,14 @@
     "flightPath": "飞行路径",
     "dragToResize": "拖动以调整大小。向左拉动以折叠遥测面板。",
     "noFlightSelected": "未选择飞行",
-    "noFlightDescription": "导入无人机飞行日志或从侧边栏选择现有飞行，以查看遥测数据和飞行路径。"
+    "noFlightDescription": "导入无人机飞行日志或从侧边栏选择现有飞行，以查看遥测数据和飞行路径。",
+    "flightMessages": "飞行消息",
+    "viewFlightMessages": "查看飞行消息",
+    "messagesColTime": "时间",
+    "messagesColFlight": "飞行时间",
+    "messagesColMessage": "消息",
+    "messagesEmpty": "此飞行没有消息",
+    "messagesClose": "关闭"
   },
   "flightList": {
     "anyDate": "任意日期",

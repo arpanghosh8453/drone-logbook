@@ -36,7 +36,14 @@
     "flightPath": "Flight Path",
     "dragToResize": "Drag to resize. Pull left to collapse telemetry panel.",
     "noFlightSelected": "No Flight Selected",
-    "noFlightDescription": "Import a drone flight log or select an existing flight from the sidebar to view telemetry data and flight path."
+    "noFlightDescription": "Import a drone flight log or select an existing flight from the sidebar to view telemetry data and flight path.",
+    "flightMessages": "Flight Messages",
+    "viewFlightMessages": "View flight messages",
+    "messagesColTime": "Time",
+    "messagesColFlight": "Flight Time",
+    "messagesColMessage": "Message",
+    "messagesEmpty": "No messages for this flight",
+    "messagesClose": "Close"
   },
   "flightList": {
     "anyDate": "Any date",

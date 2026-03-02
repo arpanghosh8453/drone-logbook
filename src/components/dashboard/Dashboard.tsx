@@ -12,6 +12,7 @@ import { FlightStats } from './FlightStats';
 import { SettingsModal } from './SettingsModal';
 import { TelemetryCharts } from '@/components/charts/TelemetryCharts';
 import { FlightMap } from '@/components/map/FlightMap';
+import { FlightMessagesModal } from './FlightMessagesModal';
 import { Overview } from './Overview';
 import { isWebMode } from '@/lib/api';
 
@@ -34,6 +35,7 @@ export function Dashboard() {
   } = useFlightStore();
   const { t } = useTranslation();
   const [showSettings, setShowSettings] = useState(false);
+  const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [activeView, setActiveView] = useState<'flights' | 'overview'>('overview');
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof localStorage !== 'undefined') {
@@ -440,6 +442,7 @@ export function Dashboard() {
             )}
           </div>
         ) : currentFlightData ? (
+          <>
           <div className="w-full h-full overflow-auto">
             <div className="min-w-[1100px] h-full flex flex-col">
             {/* Stats Bar */}
@@ -492,8 +495,36 @@ export function Dashboard() {
 
               {/* Flight Map */}
               <div className="card flex flex-col overflow-hidden min-h-0" style={{ flexBasis: `${100 - mainSplit}%` }}>
-                <div className="p-3 border-b border-gray-700">
+                <div className="px-3 py-2.5 border-b border-gray-700 flex items-center justify-between">
                   <h2 className="font-semibold text-white">{t('dashboard.flightPath')}</h2>
+                  {currentFlightData?.messages && currentFlightData.messages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMessagesModal(true)}
+                      className="relative p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/60 transition-colors"
+                      title={t('dashboard.viewFlightMessages')}
+                      aria-label={t('dashboard.viewFlightMessages')}
+                    >
+                      {/* Chat-bubble icon */}
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 10h.01M12 10h.01M16 10h.01M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"
+                        />
+                      </svg>
+                      {/* Red badge with count */}
+                      <span className="absolute -top-1 -right-1 min-w-[19px] h-[19px] px-0.5 flex items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-bold leading-none border border-drone-dark">
+                        {currentFlightData.messages.length > 99 ? '99+' : currentFlightData.messages.length}
+                      </span>
+                    </button>
+                  )}
                 </div>
                 <div className="flex-1 min-h-0 relative">
                   <FlightMap
@@ -510,6 +541,16 @@ export function Dashboard() {
             </div>
             </div>
           </div>
+          {/* Flight Messages Modal */}
+          {showMessagesModal && currentFlightData?.messages && currentFlightData.messages.length > 0 && (
+            <FlightMessagesModal
+              isOpen={showMessagesModal}
+              onClose={() => setShowMessagesModal(false)}
+              messages={currentFlightData.messages}
+              flightStartTime={currentFlightData.flight.startTime ?? null}
+            />
+          )}
+          </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-md">

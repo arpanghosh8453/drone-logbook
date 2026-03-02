@@ -36,7 +36,14 @@
     "flightPath": "Trayectoria de Vuelo",
     "dragToResize": "Arrastra para redimensionar. Tira a la izquierda para colapsar el panel de telemetría.",
     "noFlightSelected": "Ningún Vuelo Seleccionado",
-    "noFlightDescription": "Importe un registro de vuelo de dron o seleccione un vuelo existente de la barra lateral para ver datos de telemetría y trayectoria de vuelo."
+    "noFlightDescription": "Importe un registro de vuelo de dron o seleccione un vuelo existente de la barra lateral para ver datos de telemetría y trayectoria de vuelo.",
+    "flightMessages": "Mensajes de vuelo",
+    "viewFlightMessages": "Ver mensajes de vuelo",
+    "messagesColTime": "Hora",
+    "messagesColFlight": "Tiempo de vuelo",
+    "messagesColMessage": "Mensaje",
+    "messagesEmpty": "No hay mensajes para este vuelo",
+    "messagesClose": "Cerrar"
   },
   "flightList": {
     "anyDate": "Cualquier fecha",

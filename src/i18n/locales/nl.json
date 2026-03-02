@@ -36,7 +36,14 @@
     "flightPath": "Vluchtpad",
     "dragToResize": "Sleep om te verkleinen/vergroten. Sleep naar links om het telemetriepaneel in te klappen.",
     "noFlightSelected": "Geen Vlucht Geselecteerd",
-    "noFlightDescription": "Importeer een dronelogboek of selecteer een bestaande vlucht in de zijbalk om telemetriegegevens en vluchtpad te bekijken."
+    "noFlightDescription": "Importeer een dronelogboek of selecteer een bestaande vlucht in de zijbalk om telemetriegegevens en vluchtpad te bekijken.",
+    "flightMessages": "Vluchtberichten",
+    "viewFlightMessages": "Vluchtberichten bekijken",
+    "messagesColTime": "Tijd",
+    "messagesColFlight": "Vluchttijd",
+    "messagesColMessage": "Bericht",
+    "messagesEmpty": "Geen berichten voor deze vlucht",
+    "messagesClose": "Sluiten"
   },
   "flightList": {
     "anyDate": "Elke datum",

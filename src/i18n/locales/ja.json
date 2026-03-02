@@ -36,7 +36,14 @@
     "flightPath": "フライト経路",
     "dragToResize": "ドラッグしてリサイズ。左に引いてテレメトリーパネルを閉じます。",
     "noFlightSelected": "フライトが選択されていません",
-    "noFlightDescription": "ドローンフライトログをインポートするか、サイドバーから既存のフライトを選択して、テレメトリーデータとフライト経路を表示します。"
+    "noFlightDescription": "ドローンフライトログをインポートするか、サイドバーから既存のフライトを選択して、テレメトリーデータとフライト経路を表示します。",
+    "flightMessages": "フライトメッセージ",
+    "viewFlightMessages": "フライトメッセージを表示",
+    "messagesColTime": "時刻",
+    "messagesColFlight": "飛行時間",
+    "messagesColMessage": "メッセージ",
+    "messagesEmpty": "このフライトにメッセージはありません",
+    "messagesClose": "閉じる"
   },
   "flightList": {
     "anyDate": "すべての日付",

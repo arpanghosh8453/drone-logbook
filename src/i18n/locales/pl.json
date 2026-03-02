@@ -36,7 +36,14 @@
     "flightPath": "Trasa Lotu",
     "dragToResize": "Przeciągnij, aby zmienić rozmiar. Pociągnij w lewo, aby zwinąć panel telemetrii.",
     "noFlightSelected": "Nie Wybrano Lotu",
-    "noFlightDescription": "Zaimportuj dziennik lotu drona lub wybierz istniejący lot z paska bocznego, aby wyświetlić dane telemetryczne i trasę lotu."
+    "noFlightDescription": "Zaimportuj dziennik lotu drona lub wybierz istniejący lot z paska bocznego, aby wyświetlić dane telemetryczne i trasę lotu.",
+    "flightMessages": "Wiadomości lotu",
+    "viewFlightMessages": "Wyświetl wiadomości lotu",
+    "messagesColTime": "Czas",
+    "messagesColFlight": "Czas lotu",
+    "messagesColMessage": "Wiadomość",
+    "messagesEmpty": "Brak wiadomości dla tego lotu",
+    "messagesClose": "Zamknij"
   },
   "flightList": {
     "anyDate": "Dowolna data",

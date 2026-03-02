@@ -36,7 +36,14 @@
     "flightPath": "Flugroute",
     "dragToResize": "Zum Ändern der Größe ziehen. Nach links ziehen, um das Telemetrie-Panel zu schließen.",
     "noFlightSelected": "Kein Flug ausgewählt",
-    "noFlightDescription": "Importieren Sie ein Drohnen-Flugprotokoll oder wählen Sie einen bestehenden Flug aus der Seitenleiste, um Telemetriedaten und Flugroute anzuzeigen."
+    "noFlightDescription": "Importieren Sie ein Drohnen-Flugprotokoll oder wählen Sie einen bestehenden Flug aus der Seitenleiste, um Telemetriedaten und Flugroute anzuzeigen.",
+    "flightMessages": "Flugmeldungen",
+    "viewFlightMessages": "Flugmeldungen anzeigen",
+    "messagesColTime": "Zeit",
+    "messagesColFlight": "Flugzeit",
+    "messagesColMessage": "Meldung",
+    "messagesEmpty": "Keine Meldungen für diesen Flug",
+    "messagesClose": "Schließen"
   },
   "flightList": {
     "anyDate": "Beliebiges Datum",
