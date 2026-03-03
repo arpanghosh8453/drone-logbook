@@ -53,6 +53,7 @@
     "sortDistance": "거리",
     "sortAltitude": "고도",
     "sortSpeed": "속도",
+    "sortColor": "색상",
     "filtersActiveInverted": "필터 — 활성 — 반전됨",
     "filtersActive": "필터 — 활성",
     "filtersExpand": "필터 — 클릭하여 펼치기",

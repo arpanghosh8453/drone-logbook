@@ -195,7 +195,7 @@ export function FlightList({
   const [distanceFilterMax, setDistanceFilterMax] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<
-    'name' | 'date' | 'duration' | 'distance' | 'altitude' | 'speed'
+    'name' | 'date' | 'duration' | 'distance' | 'altitude' | 'speed' | 'color'
   >('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -860,6 +860,12 @@ export function FlightList({
           ? aSpeed - bSpeed
           : bSpeed - aSpeed;
       }
+      if (sortOption === 'color') {
+        const colorA = (a.color ?? '#7dd3fc').toLowerCase();
+        const colorB = (b.color ?? '#7dd3fc').toLowerCase();
+        const cmp = colorA.localeCompare(colorB);
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
       const aDate = a.startTime ? new Date(a.startTime).getTime() : 0;
       const bDate = b.startTime ? new Date(b.startTime).getTime() : 0;
       return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
@@ -954,6 +960,7 @@ export function FlightList({
       { value: 'distance', label: t('flightList.sortDistance') },
       { value: 'altitude', label: t('flightList.sortAltitude') },
       { value: 'speed', label: t('flightList.sortSpeed') },
+      { value: 'color', label: t('flightList.sortColor', 'Color') },
     ],
     [t]
   );
@@ -2937,7 +2944,7 @@ export function FlightList({
           className="fixed z-[9999] min-w-[180px] py-1 rounded-lg border border-gray-700 bg-drone-surface shadow-xl"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 200),
-            top: Math.min(contextMenu.y, window.innerHeight - 250),
+            top: Math.min(contextMenu.y, window.innerHeight - 290),
           }}
           onClick={(e) => e.stopPropagation()}
         >

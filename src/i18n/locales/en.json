@@ -53,6 +53,7 @@
     "sortDistance": "Distance",
     "sortAltitude": "Altitude",
     "sortSpeed": "Speed",
+    "sortColor": "Color",
     "filtersActiveInverted": "Filters — Active — Inverted",
     "filtersActive": "Filters — Active",
     "filtersExpand": "Filters — click to expand",
