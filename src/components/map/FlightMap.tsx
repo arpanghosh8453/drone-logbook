@@ -364,8 +364,10 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
   const overlayRef = useRef<MapboxOverlay | null>(null);
 
   // Capture map snapshot when requested (for FlyCard export)
-  // With MapboxOverlay, deck.gl renders into MapLibre's own canvas —
-  // a single canvas capture gets both the map tiles and the flight path.
+  // MapboxOverlay with interleaved: false renders deck.gl layers on a
+  // separate canvas stacked on top of the MapLibre canvas.  We must
+  // composite all canvases inside the map container to include the
+  // flight path, markers, etc.
   const captureMapSnapshot = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) {
@@ -382,7 +384,32 @@ export function FlightMap({ track, homeLat, homeLon, durationSecs, telemetry, th
         return null;
       }
 
-      return mapCanvas.toDataURL('image/png');
+      // Collect all visible canvas elements inside the map container
+      const container = map.getContainer();
+      const allCanvases = Array.from(container.querySelectorAll('canvas'));
+
+      if (allCanvases.length <= 1) {
+        // Only the base map canvas — fast path
+        return mapCanvas.toDataURL('image/png');
+      }
+
+      // Composite every canvas (map tiles + deck.gl overlay) in DOM order
+      const composite = document.createElement('canvas');
+      composite.width = mapCanvas.width;
+      composite.height = mapCanvas.height;
+      const ctx = composite.getContext('2d');
+      if (!ctx) return mapCanvas.toDataURL('image/png');
+
+      for (const c of allCanvases) {
+        if (c.width === 0 || c.height === 0) continue;
+        try {
+          ctx.drawImage(c, 0, 0, composite.width, composite.height);
+        } catch {
+          // skip tainted canvases
+        }
+      }
+
+      return composite.toDataURL('image/png');
     } catch (err) {
       console.error('Failed to capture map snapshot:', err);
       return null;
