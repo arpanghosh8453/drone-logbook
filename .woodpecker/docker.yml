@@ -31,7 +31,7 @@ steps:
     image: codeberg.org/woodpecker-plugins/docker-buildx:6.0.3
     when:
       event: tag
-      tag: nightly
+      ref: refs/tags/nightly
     settings:
       dockerfile: *dockerfile
       platforms: linux/amd64
@@ -52,7 +52,8 @@ steps:
     image: codeberg.org/woodpecker-plugins/docker-buildx:6.0.3
     when:
       event: [tag, release]
-      tag: '!nightly'
+      ref:
+        exclude: refs/tags/nightly
     settings:
       dockerfile: *dockerfile
       platforms: linux/amd64
