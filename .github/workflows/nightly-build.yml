@@ -1,0 +1,144 @@
+name: Nightly Tauri Build
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  check-activity:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check for recent commits
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "Manual dispatch — skipping activity check"
+            exit 0
+          fi
+          LAST_COMMIT=$(git log -1 --format=%ct)
+          NOW=$(date +%s)
+          DIFF=$(( NOW - LAST_COMMIT ))
+          if [ "$DIFF" -le 86400 ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "Last commit within 24 hours ($DIFF seconds ago) — building"
+          else
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "Last commit older than 24 hours ($DIFF seconds ago) — skipping"
+          fi
+
+  build:
+    needs: check-activity
+    if: needs.check-activity.outputs.should_build == 'true'
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            rpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: '.'
+          args: '${{ matrix.target && format(''--target {0} --verbose'', matrix.target) || ''--verbose'' }}'
+          tagName: nightly
+          releaseName: 'Nightly Build'
+          releaseBody: |
+            Automated nightly pre-release built from the latest commit on `main`.
+            **This is not a stable release** — it may contain bugs or incomplete features.
+          prerelease: true
+          includeRelease: true
+          uploadPlainBinary: true
+          releaseAssetNamePattern: 'open-dronelog_nightly_[platform]_[arch].[ext]'
+
+  checksums:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir assets
+          gh release download "nightly" \
+            --repo "${{ github.repository }}" \
+            --dir assets \
+            --pattern '*.deb' \
+            --pattern '*.rpm' \
+            --pattern '*.AppImage' \
+            --pattern '*.dmg' \
+            --pattern '*.exe' \
+            --pattern '*.msi' \
+            --pattern '*.nsis.zip' \
+            --pattern 'open-dronelog_*'
+
+      - name: Generate checksums
+        run: |
+          cd assets
+          sha256sum * | sort -k2 > ../checksums.txt
+          echo "Generated checksums:"
+          cat ../checksums.txt
+
+      - name: Upload checksums to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "nightly" checksums.txt \
+            --repo "${{ github.repository }}" \
+            --clobber
