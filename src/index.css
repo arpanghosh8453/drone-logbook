@@ -504,7 +504,8 @@ body.theme-light ::-webkit-scrollbar-thumb:hover {
   }
 
   .input {
-    @apply bg-drone-dark border border-gray-600 rounded-lg px-4 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-drone-primary/50 focus:border-drone-primary transition-all;
+    @apply bg-drone-dark border border-gray-600 rounded-lg px-4 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-drone-primary/50 focus:border-drone-primary;
+    transition: border-color 0.15s, box-shadow 0.15s;
     color-scheme: dark;
   }
 

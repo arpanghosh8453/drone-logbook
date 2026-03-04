@@ -767,6 +767,16 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('themeMode', themeMode);
     }
+    // Apply body class synchronously for instant visual feedback
+    if (typeof document !== 'undefined') {
+      const prefersDark =
+        typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : true;
+      const resolved = themeMode === 'system' ? (prefersDark ? 'dark' : 'light') : themeMode;
+      document.body.classList.remove('theme-dark', 'theme-light');
+      document.body.classList.add(resolved === 'dark' ? 'theme-dark' : 'theme-light');
+    }
     set({ themeMode });
   },
 

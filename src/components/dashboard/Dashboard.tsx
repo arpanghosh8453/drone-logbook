@@ -124,6 +124,9 @@ export function Dashboard() {
     };
   }, []);
 
+  // Apply theme class on mount and listen for system preference changes.
+  // The store's setThemeMode already applies classes synchronously for instant switching;
+  // this effect only handles initial mount + OS-level dark/light changes.
   useEffect(() => {
     const applyTheme = (mode: 'system' | 'dark' | 'light') => {
       const prefersDark =
@@ -135,16 +138,21 @@ export function Dashboard() {
       document.body.classList.add(resolved === 'dark' ? 'theme-dark' : 'theme-light');
     };
 
+    // Ensure correct class on initial mount
     applyTheme(themeMode);
 
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       const media = window.matchMedia('(prefers-color-scheme: dark)');
-      const handler = () => themeMode === 'system' && applyTheme('system');
+      const handler = () => {
+        // Only react to OS changes when in 'system' mode
+        const current = useFlightStore.getState().themeMode;
+        if (current === 'system') applyTheme('system');
+      };
       media.addEventListener('change', handler);
       return () => media.removeEventListener('change', handler);
     }
     return undefined;
-  }, [themeMode]);
+  }, []);  // Run once on mount — store setter handles subsequent changes synchronously
 
   useEffect(() => {
     if (activeView === 'overview') {
