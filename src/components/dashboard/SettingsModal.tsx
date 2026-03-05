@@ -32,7 +32,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeduplicating, setIsDeduplicating] = useState(false);
   const [confirmRemoveAutoTags, setConfirmRemoveAutoTags] = useState(false);
   const [enabledTagTypes, setEnabledTagTypes] = useState<SmartTagTypeId[]>(() => getEnabledSmartTagTypes());
   const [isTagTypeDropdownOpen, setIsTagTypeDropdownOpen] = useState(false);
@@ -123,7 +122,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   // True when any long-running destructive/IO operation is in progress
-  const isBusy = isBackingUp || isRestoring || isDeleting || isRegenerating || isRemovingAutoTags || isDeduplicating;
+  const isBusy = isBackingUp || isRestoring || isDeleting || isRegenerating || isRemovingAutoTags;
 
   // Check if API key exists on mount
   useEffect(() => {
@@ -250,27 +249,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleDeduplicate = async () => {
-    setIsDeduplicating(true);
-    setMessage(null);
-    try {
-      const removed = await api.deduplicateFlights();
-      if (removed > 0) {
-        // Refresh data after deduplication
-        clearSelection();
-        await loadFlights();
-        await loadOverview();
-        setMessage({ type: 'success', text: `Removed ${removed} duplicate flight${removed === 1 ? '' : 's'}.` });
-      } else {
-        setMessage({ type: 'success', text: 'No duplicate flights found.' });
-      }
-    } catch (err) {
-      setMessage({ type: 'error', text: `Deduplication failed: ${err}` });
-    } finally {
-      setIsDeduplicating(false);
-    }
-  };
-
   const handleBackup = async () => {
     setIsBackingUp(true);
     setMessage(null);
@@ -343,7 +321,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {isBackingUp && t('settings.exportingBackup')}
               {isRestoring && t('settings.restoringBackup')}
               {isDeleting && t('settings.deletingAllLogs')}
-              {isDeduplicating && t('settings.removingDuplicates')}
               {isRemovingAutoTags && t('settings.removingAutoTags')}
               {isRegenerating && (
                 <>
@@ -508,8 +485,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <span>{t('settings.hideSerials')}</span>
                   <span
                     className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-all ${hideSerialNumbers
-                        ? 'bg-drone-primary/90 border-drone-primary'
-                        : 'bg-drone-surface border-gray-600 toggle-track-off'
+                      ? 'bg-drone-primary/90 border-drone-primary'
+                      : 'bg-drone-surface border-gray-600 toggle-track-off'
                       }`}
                   >
                     <span
@@ -538,8 +515,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   >
                     <span
                       className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-all ${smartTagsEnabled
-                          ? 'bg-drone-primary/90 border-drone-primary'
-                          : 'bg-drone-surface border-gray-600 toggle-track-off'
+                        ? 'bg-drone-primary/90 border-drone-primary'
+                        : 'bg-drone-surface border-gray-600 toggle-track-off'
                         }`}
                     >
                       <span
@@ -627,8 +604,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         setEnabledSmartTagTypes(newTypes);
                                       }}
                                       className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${isSelected
-                                          ? 'bg-teal-500/20 text-gray-800 dark:text-teal-200'
-                                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+                                        ? 'bg-teal-500/20 text-gray-800 dark:text-teal-200'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
                                         }`}
                                     >
                                       <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-teal-500 bg-teal-500' : 'border-gray-400 dark:border-gray-600'
@@ -826,8 +803,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <span>{t('settings.removeBanner')}</span>
                   <span
                     className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-all ${donationAcknowledged
-                        ? 'bg-drone-primary/90 border-drone-primary'
-                        : 'bg-drone-surface border-gray-600 toggle-track-off'
+                      ? 'bg-drone-primary/90 border-drone-primary'
+                      : 'bg-drone-surface border-gray-600 toggle-track-off'
                       }`}
                   >
                     <span
@@ -840,25 +817,42 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <p className="text-xs text-amber-400/80 mt-1">{t('settings.badgeLocked')}</p>
                 )}
 
-                {/* Supporter Badge Button */}
+                {/* Supporter Badge and Shop Buttons (Side-by-side) */}
+
                 <p className="mt-3 text-xs text-gray-500 leading-relaxed">
-                  Show your love by supporting this project - your donation keeps development running and new features coming.
+                  {t('settings.supporterDescription', 'Show your love by supporting this project - your donation keeps development running and new features coming.')}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => { setShowBadgeModal(true); setBadgeMessage(null); setBadgeCode(''); }}
-                  className={`mt-3 w-full py-2 px-3 rounded-lg border text-sm transition-colors ${supporterBadgeActive
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowBadgeModal(true); setBadgeMessage(null); setBadgeCode(''); }}
+                    className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${supporterBadgeActive
                       ? 'border-amber-500/50 text-amber-400 hover:bg-amber-500/10'
                       : 'border-violet-500/50 text-violet-400 hover:bg-violet-500/10'
-                    }`}
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      }`}
+                  >
+                    <span className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                      {supporterBadgeActive ? t('settings.manageBadge', 'Manage badge') : t('settings.getBadge', 'Get badge')}
+                    </span>
+                  </button>
+
+                  <a
+                    href="https://ko-fi.com/arpandesign/shop"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 px-3 rounded-lg border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 transition-colors text-sm flex items-center justify-center gap-1.5 no-underline whitespace-nowrap"
+                  >
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                      <line x1="3" y1="6" x2="21" y2="6"></line>
+                      <path d="M16 10a4 4 0 0 1-8 0"></path>
                     </svg>
-                    {supporterBadgeActive ? t('settings.manageSupporterBadge') : t('settings.getSupporterBadge')}
-                  </span>
-                </button>
+                    {t('settings.exploreMore', 'Explore more')}
+                  </a>
+                </div>
               </div>
 
               {/* Info Section */}
@@ -921,8 +915,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       >
                         <span
                           className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-all ${keepUploadSettings.enabled
-                              ? 'bg-drone-primary/90 border-drone-primary'
-                              : 'bg-drone-surface border-gray-600 toggle-track-off'
+                            ? 'bg-drone-primary/90 border-drone-primary'
+                            : 'bg-drone-surface border-gray-600 toggle-track-off'
                             }`}
                         >
                           <span
@@ -953,8 +947,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         }}
                         disabled={!keepUploadSettings.enabled}
                         className={`p-1.5 rounded transition-colors ${keepUploadSettings.enabled
-                            ? 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                            : 'text-gray-600 cursor-not-allowed'
+                          ? 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                          : 'text-gray-600 cursor-not-allowed'
                           }`}
                         title="Select folder"
                       >
@@ -1057,30 +1051,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {t('settings.deleteAllLogs')}
                   </button>
                 )}
-
-                {/* Deduplicate Flights */}
-                <button
-                  onClick={handleDeduplicate}
-                  disabled={isBusy}
-                  className="mt-3 w-full py-2 px-3 rounded-lg border border-violet-600 text-violet-400 hover:bg-violet-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  {isDeduplicating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
-                      </svg>
-                      {t('settings.scanningDuplicates')}
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      {t('settings.removeDuplicates')}
-                    </span>
-                  )}
-                </button>
 
                 {/* Clear Sync Blacklist */}
                 {blacklistCount > 0 && (
