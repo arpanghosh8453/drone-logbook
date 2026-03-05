@@ -1,711 +1,592 @@
 {
   "project": {
     "name": "Open DroneLog",
-    "goal": "Local-first drone log viewer with charts, maps, and analytics. Supports DJI and Litchi CSV formats. Available as a Tauri v2 desktop app or a Docker-deployable web app.",
+    "description": "Local-first drone flight log viewer and analyzer with telemetry charts, 3D flight maps, and analytics. Supports DJI, Litchi CSV, and Airdata CSV formats. Available as a Tauri v2 desktop app or a Docker-deployable web app.",
+    "version": "2.26.0",
     "license": "AGPL-3.0-only",
-    "stack": {
-      "desktop": "Tauri v2 (feature: tauri-app)",
-      "web": "Axum 0.7 + Nginx (feature: web)",
-      "frontend": "React 18 + TypeScript + Vite + Tailwind",
-      "state": "Zustand",
-      "charts": "ECharts (echarts-for-react)",
-      "maps": "MapLibre GL (react-map-gl) + deck.gl",
-      "database": "DuckDB (duckdb-rs, bundled)",
-      "parser": "dji-log-parser v0.5.7"
+    "repository": "https://github.com/arpanghosh8453/open-dronelog",
+    "mirror": "https://codeberg.org/arpanghosh8453/open-dronelog"
+  },
+  "tech_stack": {
+    "frontend": {
+      "framework": "React 18 + TypeScript",
+      "build_tool": "Vite 6",
+      "styling": "Tailwind CSS 3.4",
+      "state_management": "Zustand 5 (syncs with localStorage and database)",
+      "charts": "ECharts 5 (echarts-for-react)",
+      "maps": "MapLibre GL 4.7 (react-map-gl 7) + deck.gl 9",
+      "i18n": "i18next (11 locales: en, de, es, fr, it, ja, ko, nl, pl, pt, zh)",
+      "other": [
+        "react-dropzone 14",
+        "react-day-picker 9"
+      ]
     },
-    "os": "Linux",
+    "backend": {
+      "language": "Rust (stable 1.85+)",
+      "desktop_framework": "Tauri v2 (feature-gated: tauri-app)",
+      "web_framework": "Axum 0.7 (feature-gated: web)",
+      "database": "DuckDB (duckdb-rs, bundled)",
+      "log_parser": "dji-log-parser v0.5.7",
+      "csv_parsers": "Custom Litchi, Airdata, and DroneLogbook CSV parsers",
+      "geocoding": "reverse_geocoder 4.1.1 (offline, bundled GeoNames dataset)",
+      "other": [
+        "flate2 (gzip)",
+        "tar 0.4 (backup archives)",
+        "tower-http 0.5 (CORS, static files)"
+      ]
+    },
     "runtime": {
       "node": "18.x",
-      "rust": "stable (1.85+ required by DuckDB)",
+      "rust": "stable 1.85+",
       "tauri_cli": "2.x"
     }
   },
-  "dependencies": {
-    "frontend": {
-      "react": "^18.3.1",
-      "react_dom": "^18.3.1",
-      "vite": "^6.0.0",
-      "tailwindcss": "^3.4.14",
-      "zustand": "^5.0.0",
-      "echarts": "^5.5.0",
-      "echarts_for_react": "^3.0.2",
-      "react_map_gl": "^7.1.7",
-      "maplibre_gl": "^4.7.0",
-      "deck_gl": "^9.x",
-      "deck_gl_layers": "^9.x",
-      "react_dropzone": "^14.3.5",
-      "react_day_picker": "^9.13.0"
-    },
-    "tauri_plugins": [
-      "@tauri-apps/api",
-      "@tauri-apps/plugin-dialog",
-      "@tauri-apps/plugin-fs",
-      "@tauri-apps/plugin-log",
-      "@tauri-apps/plugin-shell",
-      "tauri-plugin-single-instance"
-    ],
-    "backend": {
-      "duckdb_rs": "bundled",
-      "dji_log_parser": "0.5.7",
-      "axum": "0.7 (web feature, with multipart)",
-      "tower_http": "0.5 (web feature, with cors + fs)",
-      "env_logger": "0.11",
-      "flate2": "1 (gzip compression for backup archives)",
-      "tar": "0.4 (tar archive for backup/restore)",
-      "reverse_geocoder": "4.1.1 (offline city/country/continent geocoding from GeoNames data)",
-      "tempfile": "3 (dev-dependency for tests)"
-    }
-  },
-  "build_modes": {
-    "tauri_app": {
-      "description": "Desktop app with Tauri v2 IPC (default feature)",
-      "cargo_features": "tauri-app (default)",
-      "frontend_env": "VITE_BACKEND unset or != 'web'",
-      "commands": {
-        "dev": "npm run tauri",
-        "build": "npm run tauri build"
+  "architecture": {
+    "deployment_modes": {
+      "desktop": {
+        "description": "Tauri v2 desktop app using IPC commands",
+        "cargo_feature": "tauri-app (default)",
+        "frontend_env": "VITE_BACKEND unset or != 'web'",
+        "entry_point": "src-tauri/src/main.rs (mod tauri_app)"
+      },
+      "web_docker": {
+        "description": "Axum REST API server with Nginx reverse proxy for Docker/web deployment",
+        "cargo_feature": "web (--no-default-features --features web)",
+        "frontend_env": "VITE_BACKEND=web",
+        "entry_point": "src-tauri/src/server.rs (build_router)"
       }
     },
-    "web": {
-      "description": "REST API server with Axum for Docker/web deployment",
-      "cargo_features": "web (--no-default-features --features web)",
-      "frontend_env": "VITE_BACKEND=web",
-      "commands": {
-        "dev_frontend": "npm run dev:web",
-        "dev_backend": "cargo run --features web --no-default-features",
-        "build_frontend": "npm run build:web",
-        "build_backend": "cargo build --release --features web --no-default-features",
-        "docker": "docker compose up --build"
-      }
+    "frontend_backend_bridge": "src/lib/api.ts — unified adapter that routes to invoke() for Tauri or fetch() for web. All @tauri-apps imports are lazy/dynamic.",
+    "data_flow": {
+      "import": [
+        "User selects file(s) via native dialog (desktop) or HTML input / drag-drop (web)",
+        "File routed to parser: DJI .txt → parser.rs, Litchi .csv → litchi_parser.rs, Airdata .csv → airdata_parser.rs, DroneLogbook CSV → dronelogbook_parser.rs",
+        "Parser runs in spawn_blocking with catch_unwind and 40s timeout for crash safety",
+        "Telemetry validated: GPS range (±90/±180), altitude <10km, speed <100 m/s, corrupt frames skipped",
+        "DJI V13+ logs require keychain decryption from DJI API; keys cached locally for offline reuse",
+        "Duplicate check: drone_serial + battery_serial + exact start_time match → skip",
+        "File hash (SHA256) duplicate check → skip",
+        "Flight metadata inserted into flights table",
+        "Telemetry bulk inserted via DuckDB Appender (column order enforced)",
+        "Smart tags generated if enabled (flight characteristics + offline reverse geocoding)",
+        "Flight messages (tips/warnings) extracted and stored",
+        "On telemetry insert failure, flight metadata is automatically cleaned up"
+      ],
+      "query": [
+        "Frontend calls selectFlight() → checks in-memory LRU cache (max 10 flights)",
+        "On cache miss: api.getFlightData() → backend get_flight_by_id()",
+        "Telemetry downsampled to ~5000 points (1s buckets) if exceeding threshold",
+        "Response cached in frontend store for instant re-selection",
+        "Frontend converts units (metric/imperial) and renders charts + map"
+      ]
     }
   },
-  "scope": {
-    "features": [
-      "Import and parse DJI flight logs (bulk import with cooldown). Third-party app logs (Dronelink, DroneDeploy) supported via DJIFly department fallback.",
-      "Import Litchi CSV exports with automatic unit detection (metric/imperial) and 'Litchi' auto-tag.",
-      "Flight deduplication: prevents importing same flight from different export versions (signature: drone_serial + battery_serial + exact start_time match). One-time startup cleanup for existing duplicates.",
-      "Local DuckDB storage with telemetry schema, WAL recovery, and migration support.",
-      "Overview analytics page (totals, averages, max altitude, max distance from home).",
-      "Overview activity heatmap (365-day, 7x52 grid) with date range selector.",
-      "Overview donut charts for flights by drone model, batteries used, and flight duration (short/mid/long).",
-      "Overview top 3 longest and furthest (distance-from-home) flights.",
-      "Overview map area filter: toggle in sidebar filters flights to only those visible on the overview map. Map shows green glow border and 'Global filter active' title when enabled. Reset zoom button fits all flights.",
-      "Battery health: per-serial health bars, inline rename (pencil icon, uniqueness-validated, persisted to database for cross-device sync), and per-minute usage history plot (scatter + smoothed line) with zoom slider and drag-to-zoom.",
-      "Flight messages: Display tips and warnings from DJI flight logs in collapsible section within flight stats. Messages color-coded by type (tip/warning) with timestamps.",
-      "Maintenance tracking: Configurable flight and airtime thresholds for batteries and aircraft. Progress bars show usage since last maintenance with color-coded warnings (green <60%, yellow 60-74%, orange 75-89%, red 90%+). Record maintenance with date picker, resets counters for flights after that date. Multi-select for tracking multiple items.",
-      "Flight list with rename (pencil icon), delete (trash icon), filters (date range, drone, battery, duration/altitude/distance range sliders, map area), search, and sorting.",
-      "Flight list sidebar: collapsible Filters section (default collapsed) and Import section (auto-collapsed when flights exist, auto-expanded when empty).",
-      "Overview uses sidebar-filtered flights via Zustand store (sidebarFilteredFlightIds) instead of its own filter bar.",
-      "Settings: API key, units (metric/imperial), theme (light/dark/system), delete-all logs.",
-      "Settings: Keep uploaded files toggle (desktop only) with folder picker to retain copies of imported log files with hash-based deduplication.",
-      "Settings: shows app data + log directory for troubleshooting.",
-      "Charts: height/VPS/speed (metric in km/h), battery, attitude, RC signal, GPS satellites.",
-      "Charts: RC uplink/downlink, distance-to-home, velocity XYZ panels, and cell voltages (dynamic legend per cell).",
-      "Charts: synchronized zoom, drag-to-zoom toggle, reset zoom, auto-scaled Y axes, aligned X-axis ticks, custom tooltip header with pills.",
-      "Charts: Dynamic configuration via per-chart multi-select dropdown (max 4 fields, searchable, checkboxes, selected-first sorting) — select which telemetry fields to display per chart panel, reset to defaults button, settings persisted to localStorage.",
-      "Map: 3D terrain view via MapLibre, global theme styling.",
-      "Map: satellite style toggle, gradient flight path with start/end markers.",
-      "Map: deck.gl 3D path overlay; map toggles persist in session.",
-      "Map: Catmull-Rom spline smoothing, color-by modes (progress/height/speed/distance), hover tooltip.",
-      "Map: Flight replay with play/pause, seek slider, speed selector (0.5x-16x), and 3D-aware aircraft marker.",
-      "Map: Replay telemetry overlay (top-right) showing live-interpolated height, speed, distance, battery, satellites, attitude, and coordinates synced to playback position. RC stick input overlay above playbar with progressive-fill bar indicators for throttle, rudder, elevator, and aileron — theme-aware with visible track rails. Hover tooltip paused during replay. Battery status indicator in hover tooltip.",
-      "Map: Aircraft toggle to show/hide replay controls and marker. Satellite maxzoom 18, terrain DEM maxzoom 12.",
-      "Export: CSV/JSON/GPX/KML downloads from flight stats. Shared export utilities in src/lib/exportUtils.ts for consistent output across all export methods (stats panel, bulk export, context menu). CSV includes cell_voltages as JSON array. KML uses absolute altitude mode with fallback order: altitude → height → vps_height → 0. Manual entries (no telemetry) export with home coordinates: CSV includes single row with metadata, GPX creates waypoint, KML creates point placemark.",
-      "FlyCard: Shareable 1080x1080 flight stats image generated from context menu. Captures current map view (satellite/terrain + flight path), overlays flight stats (distance, altitude, duration, speed, aircraft name), and adds branding. Uses html2canvas for rendering. Available only in Flights view (disabled in Overview). Desktop uses native save dialog via Tauri.",
-      "Manual Flight Entry: Create flight records without log files via ManualEntryModal. Collects optional flight title (custom display name), aircraft name, drone/battery serial, date (DayPicker opens downward), time (12h local format, converted to UTC), duration, optional distance/altitude (unit-aware), and takeoff coordinates with validation. Auto-tagged as 'Manual Entry' with smart location tags. Available via centered 'Manual Entry' button in FlightImporter.",
-      "Single Instance Guard: tauri-plugin-single-instance ensures only one desktop app instance runs at a time. Opening a second instance focuses the existing window instead of launching a new one.",
-      "Logging: comprehensive debug logging via tauri-plugin-log (desktop) or env_logger (web).",
-      "Crash protection: parser uses spawn_blocking + catch_unwind + timeout. Telemetry validated for GPS range, finite values, altitude/speed sanity.",
-      "UI polish: theme variables, tag styling for device/serials, modal scrollbar lock.",
-      "UI polish: Import progress counter showing current file out of total during batch imports.",
-      "UI polish: Sidebar width remembered across sessions via localStorage.",
-      "UI polish: Layout clipping fixes for Tauri on Linux (100vh -> 100% for title bar area).",
-      "UI polish: Battery/aircraft serial rename mapping persisted to database for cross-device sync in Docker/web mode. localStorage used as cache for fast page load.",
-      "UI polish: Horizontal scrollbar on Overview (min-w-[1100px]) and Flights detail view (min-w-[1100px]) when window is narrower than content.",
-      "UI polish: WeatherModal rendered via createPortal to document.body with modal-open class for scrollbar suppression.",
-      "Smart Tags: Auto-generated descriptive tags on import (Night Flight, High Speed, Cold Battery, Heavy Load, Low Battery, High Altitude, Long Distance, Long Flight, Short Flight, Aggressive Flying, No GPS, M-SDK) plus offline reverse geocoding (city, country, continent) via reverse_geocoder crate.",
-      "Smart Tags: Two tag types — auto (teal capsules) and manual (violet capsules). Add/remove manual tags via FlightStats. Settings toggle to enable/disable auto-tagging on import. Regenerate smart tags for all flights button in Settings.",
-      "Smart Tags: flight_tags table in DuckDB with tag_type column (auto/manual), migration for older DBs, included in backup/restore.",
-      "Smart Tags: Bulk tag operations — 'Untag filtered' removes selected tags from all filtered flights, 'Bulk tag filtered' adds a manual tag to all filtered flights. Both show progress overlay during operation.",
-      "Flight list: Tag filter (multi-select dropdown with checkboxes). Filter inversion button (circular arrows icon) to negate all active filters.",
-      "Flight list: Keyboard navigation — Up/Down arrows to browse flights (preview highlight), Enter to select and load. Selection auto-clears when filtered out.",
-      "UI: Select dropdowns (drone, battery, settings) are searchable — type to filter options, arrow keys to navigate, Enter selects, Escape closes.",
-      "UI: All dropdowns (sort, export, tag filter) support arrow key navigation with visual highlight.",
-      "UI: Escape key closes modals (Settings, Weather).",
-      "Backup & Restore: Export full database (flights, telemetry, keychains, flight_tags) to a portable gzip-compressed tar archive of Parquet files. Import restores data with upsert semantics. Works in both Tauri (native save/open dialogs) and web (browser download/upload).",
-      "Data safety: DB backup, corruption handling, telemetry rebuild when column order mismatches.",
-      "Docker/Web deployment: Axum REST API mirroring all Tauri commands, Nginx reverse proxy, multi-stage Docker build.",
-      "Dual-mode frontend: api.ts adapter uses invoke() for Tauri, fetch() for web. All @tauri-apps imports are dynamic.",
-      "Supporter Badge: SHA-256 verified activation code system. Badge displayed in sidebar header between app title and settings icon. Activation modal in settings with Ko-fi donation instructions. Badge persisted to localStorage. Donation toggle locked when badge active. CSS animations (fadeIn, starPulse) with light mode overrides.",
-      "Settings modal: Two-column layout (max-w-3xl). Left column: Units, Theme, Smart Tags, API Key. Right column: Donation status, Supporter Badge, App info, Backup/Restore, Delete all logs.",
-      "App version: Displayed in settings. Reads from Tauri API (desktop) or Vite-injected __APP_VERSION__ (web). vite.config.ts reads version from src-tauri/tauri.conf.json with existsSync fallback to package.json for Docker builds.",
-      "Filter inversion: Uses AND logic for inverted filters (NOT A AND NOT B) — each filter condition individually inverted rather than inverting the combined result.",
-      "Photo/Video counts: Tracked per flight (photo_count, video_count columns in flights table) with automatic backfill from telemetry is_photo/is_video transitions. Displayed in overview stats and flight stats panel.",
-      "Map: Collapsible settings panel with color-by, aircraft toggle, media events toggle, tooltip toggle, and line thickness control (1-5, default 3). Settings persist in session.",
-      "HTML Report: Configurable print-ready flight regulation report. Modal lets user select document title, pilot name, and toggle field groups (General Info, Equipment, Flight Stats, Battery, Weather, Media). Report is A4-width, grouped by day with subtotals, and can be printed as PDF via Ctrl+P. Supports weather data, theme-responsive layout, and Open Dronelog branding. Field preferences and pilot name persist across sessions.",
-      "Filter refresh: Slider ranges (duration, altitude, distance) and dropdown selections (drones, batteries, tags, date range) auto-refresh after flight deletion to prevent stale/stuck filter values."
-    ],
-    "out_of_scope": [
-      "Cloud sync",
-      "External analytics pipelines"
-    ]
-  },
-  "structure": {
-    "frontend": {
-      "root": "src",
-      "key_components": [
-        "src/components/dashboard/Dashboard.tsx",
-        "src/components/dashboard/FlightList.tsx",
-        "src/components/dashboard/FlightStats.tsx",
-        "src/components/dashboard/FlightImporter.tsx",
-        "src/components/dashboard/SettingsModal.tsx",
-        "src/components/dashboard/WeatherModal.tsx",
-        "src/components/dashboard/Overview.tsx",
-        "src/components/dashboard/FlyCardGenerator.tsx",
-        "src/components/dashboard/ManualEntryModal.tsx",
-        "src/components/dashboard/HtmlReportModal.tsx",
-        "src/components/ui/Select.tsx",
-        "src/components/charts/TelemetryCharts.tsx",
-        "src/components/map/FlightMap.tsx"
-      ],
-      "styles": [
-        "src/index.css",
-        "tailwind.config.js"
-      ],
-      "state_store": "src/stores/flightStore.ts (includes batteryNameMap and droneNameMap synced to database via API, sidebarFilteredFlightIds for Overview filter sync, allTags, smartTagsEnabled, isRegenerating, addTag/removeTag/regenerateSmartTags actions, supporterBadgeActive persisted to localStorage, setSupporterBadge action, loadEquipmentNames action)",
-      "api_adapter": "src/lib/api.ts",
-      "html_report": "src/lib/htmlReportBuilder.ts",
-      "types": "src/types/index.ts",
-      "env_types": "src/vite-env.d.ts"
-    },
+  "project_structure": {
     "backend": {
       "root": "src-tauri/src",
-      "key_files": [
-        "src-tauri/src/main.rs",
-        "src-tauri/src/server.rs",
-        "src-tauri/src/database.rs",
-        "src-tauri/src/parser.rs",
-        "src-tauri/src/litchi_parser.rs",
-        "src-tauri/src/models.rs",
-        "src-tauri/src/api.rs",
-        "src-tauri/src/lib.rs"
-      ]
+      "modules": {
+        "main.rs": "Entry point; feature-gated Tauri commands (desktop) or run_web() (Docker)",
+        "server.rs": "Axum REST API router with all HTTP endpoints mirroring Tauri commands",
+        "database.rs": "DuckDB connection manager, schema creation, migrations, CRUD operations, backup/restore",
+        "parser.rs": "DJI log parser wrapper, telemetry extraction, smart tag generation, reverse geocoding, flight message extraction",
+        "litchi_parser.rs": "Litchi CSV parser with auto unit detection (feet/meters, mph/m/s)",
+        "airdata_parser.rs": "Airdata CSV parser with comprehensive field mapping",
+        "dronelogbook_parser.rs": "Re-import parser for Open DroneLog CSV exports (preserves notes, colors)",
+        "models.rs": "Shared data structures (Flight, TelemetryPoint, FlightMessage, OverviewStats, etc.)",
+        "api.rs": "DJI API key management and keychain fetching",
+        "lib.rs": "Library root (re-exports)"
+      }
+    },
+    "frontend": {
+      "root": "src",
+      "components": {
+        "dashboard/Dashboard.tsx": "Main layout: sidebar + content panel, view toggle (Flights/Overview), resizable panels",
+        "dashboard/FlightList.tsx": "Flight list sidebar with search, sort, filters, keyboard navigation, context menu, bulk operations",
+        "dashboard/FlightStats.tsx": "Selected flight stats bar with metrics, tags, weather button, export dropdown",
+        "dashboard/FlightImporter.tsx": "File import area with drag-drop, browse, batch progress, manual entry button, sync button (web)",
+        "dashboard/Overview.tsx": "Overview dashboard: stats cards, activity heatmap, pie charts, cluster map, battery health, maintenance tracking",
+        "dashboard/SettingsModal.tsx": "Two-column settings: Units, Theme, Language, Time Format, Smart Tags, API Key, Badge, Backup/Restore, Delete",
+        "dashboard/WeatherModal.tsx": "Historical weather data display (via portal to body)",
+        "dashboard/ManualEntryModal.tsx": "Manual flight entry form",
+        "dashboard/HtmlReportModal.tsx": "HTML report configuration and generation",
+        "dashboard/FlyCardGenerator.tsx": "Shareable 1080×1080 flight stats image generator",
+        "dashboard/FlightMessagesModal.tsx": "Scrollable list of flight tips/warnings with timestamps and color coding",
+        "dashboard/FlightClusterMap.tsx": "Overview map with flight location clusters and map area filter",
+        "dashboard/ColorPickerModal.tsx": "Color picker for assigning custom colors to flights",
+        "charts/TelemetryCharts.tsx": "Synchronized ECharts panels with configurable field selection",
+        "map/FlightMap.tsx": "3D flight map with deck.gl overlay, replay system, telemetry overlay, RC joystick visualization",
+        "ui/Select.tsx": "Searchable dropdown with keyboard navigation and multi-select support"
+      },
+      "state": {
+        "stores/flightStore.ts": "Zustand store: flights, telemetry cache, filters, tags, equipment names, theme, units, language, supporter badge, maintenance, map state. Syncs with localStorage and database API."
+      },
+      "lib": {
+        "api.ts": "Backend adapter: invoke() for Tauri, fetch() for web. Unified interface for all backend operations.",
+        "exportUtils.ts": "Client-side export generators for CSV, JSON, GPX, KML, Summary CSV, and bulk ZIP",
+        "htmlReportBuilder.ts": "A4-width HTML report generator with day grouping and weather data",
+        "mapStyles.ts": "Map style definitions for Satellite, Topographic, and OpenStreetMap views",
+        "utils.ts": "Unit conversion, date formatting, and general utilities",
+        "weather.ts": "Weather API integration for historical flight weather data"
+      },
+      "types": {
+        "types/index.ts": "TypeScript interfaces matching Rust models (Flight, TelemetryData, FlightMessage, OverviewStats, etc.)"
+      },
+      "i18n": {
+        "locales/": "Translation JSON files for 11 languages (en, de, es, fr, it, ja, ko, nl, pl, pt, zh)"
+      }
     },
     "docker": {
-      "dockerfile": "Dockerfile",
-      "compose": "docker-compose.yml (pre-built GHCR image)",
-      "compose_build": "docker-compose-build.yml (build from source)",
-      "nginx_conf": "docker/nginx.conf",
-      "entrypoint": "docker/entrypoint.sh"
+      "Dockerfile": "Multi-stage build: rust:1.85 → node:20 → nginx:stable",
+      "docker-compose.yml": "Production deployment with pre-built GHCR image",
+      "docker-compose-build.yml": "Build from source locally",
+      "docker/nginx.conf": "Nginx reverse proxy routing /api/* to Axum backend",
+      "docker/entrypoint.sh": "Container startup script"
     },
     "ci": {
-      "tauri_build": ".github/workflows/build.yml",
-      "docker_build": ".github/workflows/docker.yml"
+      ".github/workflows/build.yml": "Tauri desktop builds on release (Linux, Windows, macOS)",
+      ".github/workflows/docker.yml": "Docker image build and push to GHCR on release",
+      ".woodpecker/docker.yml": "Codeberg CI: Docker builds with versioned tags, nightly builds"
     },
-    "config": {
-      "env": ".env (DJI API key via env var)",
-      "local_config": "config.json (API key stored locally)",
-      "context_file": "context.json (machine-readable project context, gitignored)"
-    }
-  },
-  "data_flow": {
-    "import_tauri": [
-      "User selects file(s) via native dialog",
-      "Tauri command parses using dji-log-parser (spawn_blocking + catch_unwind + 40s timeout)",
-      "Parser validates telemetry: skips corrupt frames, filters GPS (lat +/-90, lon +/-180), clamps altitude (<10km) and speed (<100 m/s)",
-      "Metadata inserted into flights table",
-      "Telemetry bulk inserted with DuckDB Appender (column order enforced)",
-      "If telemetry insert fails, flight metadata is cleaned up automatically",
-      "UI refreshes flight list and telemetry views"
-    ],
-    "import_web": [
-      "User selects file(s) via HTML file input or drag-and-drop",
-      "File uploaded via multipart/form-data to POST /api/import",
-      "Axum handler writes to temp file, parser processes identically to Tauri mode",
-      "Temp file cleaned up after parsing",
-      "JSON response returned with ImportResult"
-    ],
-    "telemetry_query": [
-      "UI requests telemetry for flight via selectFlight()",
-      "Store checks if same flight already selected (skip if so)",
-      "Store checks _flightDataCache Map (LRU, max 10 entries) for instant hit",
-      "On cache miss: api.getFlightData() routes to invoke() or fetch() based on mode",
-      "Backend uses get_flight_by_id() for O(1) lookup",
-      "Telemetry queries skip COUNT(*) when point_count known from flight metadata",
-      "DB returns raw data or downsampled to ~5000 points (1s buckets)",
-      "Response cached in frontend store for future re-selection",
-      "Frontend converts units and renders charts/maps"
-    ]
-  },
-  "recent_changes": {
-    "litchi_csv_and_deduplication": {
-      "description": "Added Litchi CSV import support and flight deduplication to prevent duplicate imports from different export versions.",
-      "litchi_parser": "litchi_parser.rs: New module for parsing Litchi CSV exports. Auto-detects units from column headers (feet/meters, mph/m/s). Maps numeric drone type codes to model names. Flights auto-tagged with 'Litchi'.",
-      "format_detection": "parser.rs: parse_log() detects file format (DJI vs Litchi CSV via LitchiParser::is_litchi_csv()) and routes to appropriate parser.",
-      "deduplication": "database.rs: is_duplicate_flight() checks for existing flight with same drone_serial + battery_serial + start_time (within 60s window). deduplicate_flights() removes duplicates keeping flight with most telemetry points.",
-      "startup_dedup": "database.rs: run_startup_deduplication() runs one-time cleanup on first launch after update. Uses settings table with 'duplicate_checked' flag to avoid re-running.",
-      "settings_table": "database.rs: New settings table (key/value store) for app flags. get_setting() and set_setting() methods.",
-      "import_flow": "main.rs + server.rs: After parsing, checks is_duplicate_flight() before inserting. Returns 'Duplicate flight' error message if match found.",
-      "frontend": "FlightImporter.tsx: Tracks duplicate flights separately in batch import progress. Completion message shows 'X skipped (duplicate flight)'. api.ts: deduplicateFlights() function for manual cleanup."
-    },
-    "docker_web_mode": {
-      "description": "Added Docker/web deployment mode using Cargo feature flags.",
-      "server": "src-tauri/src/server.rs - Axum REST API with all 11 endpoints mirroring Tauri commands. DefaultBodyLimit set to 250MB for large flight log uploads.",
-      "api_adapter": "src/lib/api.ts - unified interface: invoke() for Tauri, fetch() for web. Lazy-loads @tauri-apps imports.",
-      "feature_flags": "Cargo.toml: tauri-app (default) and web features. All Tauri deps are optional.",
-      "main_rs": "Feature-gated: mod tauri_app for desktop, run_web() for Axum server.",
-      "frontend_components": "FlightImporter, FlightList, FlightStats, SettingsModal updated with isWebMode() guards and dynamic imports.",
-      "vite_config": "Web mode: /api proxy, conditional optimizeDeps, es2022 build target.",
-      "docker": "Multi-stage Dockerfile (rust:1.85 -> node:20 -> nginx:stable), docker-compose.yml (GHCR image), docker-compose-build.yml (local build), nginx.conf, entrypoint.sh.",
-      "npm_scripts": "Added dev:web and build:web scripts with VITE_BACKEND=web.",
-      "sync_folder": "SYNC_LOGS_PATH env var enables automatic log import from mounted folder. GET /api/sync/config returns configured path, GET /api/sync/files lists unimported files (filtered by hash), POST /api/sync/file imports single file with progress feedback, POST /api/sync batch imports all. FlightImporter shows Sync button and auto-syncs on page load with file-by-file progress (X of Y files, current filename, green header) matching desktop behavior. database.rs: get_all_file_hashes() for efficient duplicate filtering. SyncResponse uses camelCase (syncPath) for frontend compatibility."
-    },
-    "backup_restore": {
-      "description": "Full database backup and restore. Export creates a gzip-compressed tar archive containing Parquet files for flights, telemetry, and keychains tables. Import extracts and upserts data using delete-then-insert for flights (dual unique constraints: id + file_hash) and telemetry, INSERT OR REPLACE for keychains.",
-      "backend": "database.rs: export_backup() and import_backup() methods. main.rs: export_backup and import_backup Tauri commands. server.rs: GET /api/backup and POST /api/backup/restore endpoints.",
-      "frontend": "api.ts: backupDatabase() and restoreDatabase() with dual-mode support. SettingsModal.tsx: Backup/Restore buttons with loading overlay, spinner, and auto-dismiss messages.",
-      "dependencies": "Added flate2 (gzip) and tar (archive) crates to Cargo.toml."
-    },
-    "dead_code_cleanup": {
-      "description": "Removed unused DatabaseError variants (AppDataDirNotFound, NotInitialized) and methods (keychains_dir, get_flight_track, store_keychain, get_keychain) to eliminate compiler warnings."
-    },
-    "v1_4_0_ui_improvements": {
-      "description": "Flight replay system, map fixes, layout fixes, chart zoom improvements, import counter, sidebar persistence.",
-      "flight_replay": "FlightMap.tsx: play/pause, seek slider, speed selector (0.5x-16x), 3D-aware DeckGL ScatterplotLayer marker with altitude support.",
-      "aircraft_toggle": "FlightMap.tsx: Aircraft toggle in map controls to show/hide replay controls and marker.",
-      "sky_layer_fix": "FlightMap.tsx: Removed MapLibre-incompatible sky layer (Mapbox-only) from enableTerrain() that was crashing onLoad.",
-      "map_zoom_fix": "FlightMap.tsx: Map maxZoom=22, satellite source maxzoom=18, terrain DEM maxzoom=12 (corrected from actual TileJSON).",
-      "layout_clipping": "Dashboard.tsx h-screen to h-full, min-h-0 throughout flex chain. App.tsx flex-col overflow-hidden. index.html 100vh to 100%.",
-      "import_counter": "FlightImporter.tsx: Shows 'X of Y files' during batch imports.",
-      "sidebar_persistence": "Dashboard.tsx: Sidebar width saved to localStorage and restored on load.",
-      "replay_slider_styles": "index.css: Custom slider thumb styles for the flight replay seek bar."
-    },
-    "smart_tags_and_ux": {
-      "description": "Smart flight tagging system with offline reverse geocoding, searchable filter dropdowns, and filter inversion.",
-      "smart_tags": "parser.rs: generate_smart_tags() produces auto tags based on flight stats (night, speed, battery, altitude, distance, duration). reverse_geocode() uses reverse_geocoder crate for offline city/country/continent from takeoff coordinates.",
-      "tag_types": "Two types: auto (teal capsules, generated on import) and manual (violet capsules, user-added). FlightTag struct with tag + tag_type fields.",
-      "tag_management": "database.rs: flight_tags table with tag_type column, CRUD methods (insert_flight_tags, add_flight_tag, remove_flight_tag, replace_auto_tags, get_all_unique_tags). Migration adds tag_type column to older DBs.",
-      "tag_ui": "FlightStats.tsx: tag capsules with hover-to-delete, inline add-tag input with autocomplete suggestions. FlightList.tsx: multi-select tag filter with checkboxes. SettingsModal.tsx: smart tags toggle and regenerate button.",
-      "filter_inversion": "FlightList.tsx: Invert button (circular arrows icon) negates all active filters. Red styling when inverted.",
-      "searchable_selects": "Select.tsx: Type-to-filter search input at top of dropdown, Enter selects first match, text discarded on close/blur.",
-      "settings_text": "SettingsModal.tsx: Simplified API key section text, links to GitHub guide.",
-      "cfg_gate_fix": "main.rs: mod server and run_web() gated with cfg(all(feature = web, not(feature = tauri-app))) to eliminate 32 dead_code warnings.",
-      "backup_tags": "database.rs: flight_tags table included in backup export and restore.",
-      "api_endpoints": "server.rs: POST /api/flights/tags/add, POST /api/flights/tags/remove, GET /api/tags, GET/POST /api/settings/smart_tags, POST /api/regenerate_smart_tags.",
-      "tauri_commands": "main.rs: add_flight_tag, remove_flight_tag, get_all_tags, get_smart_tags_enabled, set_smart_tags_enabled, regenerate_all_smart_tags."
-    },
-    "v2_1_0_supporter_badge_and_polish": {
-      "description": "Supporter badge system, settings modal redesign, horizontal scrollbar fix, filter inversion logic fix, app version display, Docker build fix.",
-      "supporter_badge": "flightStore.ts: supporterBadgeActive state persisted to localStorage, setSupporterBadge action. Dashboard.tsx: Badge in sidebar header between title and settings icon (amber gradient, star with pulse animation). SettingsModal.tsx: SHA-256 code verification via Web Crypto API, activation modal with Ko-fi instructions, manage/remove badge flow. Donation toggle locked when badge active. index.css: badgeFadeIn and starPulse animations with light mode overrides.",
-      "settings_two_column": "SettingsModal.tsx: Widened from max-w-md to max-w-3xl. Content uses flex layout with vertical divider (w-px bg-gray-700). Left: Units, Theme, Smart Tags, API Key. Right: Donation, Supporter Badge, Info, Backup/Restore, Delete.",
-      "horizontal_scrollbar": "App.tsx: Removed minWidth:1600, changed to overflow-hidden. Dashboard.tsx: Overview and Flights detail views wrapped in overflow-auto containers with min-w-[1100px] inner content for horizontal scrollbar.",
-      "filter_inversion_fix": "FlightList.tsx: Changed from NOT(A AND B) to (NOT A AND NOT B) — each filter individually inverted for correct AND semantics.",
-      "app_version": "SettingsModal.tsx: fetchAppVersion() tries Tauri getVersion() then falls back to __APP_VERSION__. vite.config.ts: reads version from tauri.conf.json with existsSync fallback to package.json for Docker.",
-      "docker_build_fix": "vite.config.ts: Uses existsSync check for src-tauri/tauri.conf.json, falls back to package.json version. Prevents build failure in Docker frontend stage where src-tauri is absent."
-    },
-    "rc_stick_overlay_redesign": {
-      "description": "Redesigned the RC stick input overlay on the flight map replay: removed all text labels, switched from filled arrow shapes to progressive-fill bar indicators with visible track rails, theme-aware colors via CSS custom properties.",
-      "component": "FlightMap.tsx: StickArrows component uses VBar/HBar sub-components with background track (.stick-bar-track) and foreground fill that grows from center outward proportional to stick input (0-100%). Center dot retained. No text labels (removed L/R headers, Up/Down/Fwd/Back/CCW/CW labels).",
-      "layout": "RC stick overlay and playbar wrapped in a shared flex-col container (items-stretch) so both share the exact same width. Left and right stick controls placed on opposite ends via justify-between. Gap (gap-1.5) separates overlay from playbar.",
-      "theming": "index.css: CSS custom properties for bar fill colors — dark mode uses vivid cyan (--stick-bar-active: rgba(56,200,255,0.95)), light mode uses dark slate (--stick-bar-active: rgba(30,41,59,0.9)) for visibility on white backgrounds. Track rails always visible via --stick-track. Semi-transparent backdrop-blur background (--stick-bg: 38% dark / 42% light opacity).",
-      "sizing": "Grid: 56x60px per stick. Bar length: 21px max. Bar thickness: 4px. Overlay padding: px-5 py-3."
-    },
-    "update_check_badge": {
-      "description": "Automatic version check against GitHub releases on app start. Shows a capsule badge next to the version number in Settings.",
-      "store": "flightStore.ts: Added updateStatus ('idle'|'checking'|'latest'|'outdated'|'failed') and latestVersion state. checkForUpdates() action fetches latest release tag from GitHub API (api.github.com/repos/arpanghosh8453/dji-logbook/releases/latest), compares with current app version (Tauri getVersion() or __APP_VERSION__ fallback).",
-      "ui": "SettingsModal.tsx: Capsule badge next to App Version — green 'Latest' (emerald) when up-to-date, amber 'Update to vX.X.X' when outdated (links to release page), red 'Check failed' on network error, gray 'Checking…' with spinner while fetching.",
-      "trigger": "Dashboard.tsx: checkForUpdates() called once on mount via useEffect."
-    },
-    "v1_5_0_sidebar_and_telemetry": {
-      "description": "Sidebar UX polish, unified sidebar filters for Overview, weather modal fix, map replay telemetry overlay.",
-      "collapsible_sections": "Dashboard.tsx: Collapsible Import section (default expanded) moved below Flights/Overview toggle. FlightList.tsx: Collapsible Filters section (default collapsed). Both persisted to localStorage with 'click to expand' hints.",
-      "duration_filter": "FlightList.tsx: Dual-thumb duration range slider with custom CSS (dual-range-wrap in index.css). Filters by flight duration in minutes.",
-      "altitude_filter": "FlightList.tsx: Dual-thumb altitude range slider filtering by max altitude (meters). Displays in metric or imperial based on unitSystem.",
-      "distance_filter": "FlightList.tsx: Dual-thumb distance range slider filtering by total distance traveled (meters). Displays m/km or ft/mi based on unitSystem.",
-      "overview_filter_unification": "Overview.tsx: Removed all local filter UI (date picker, drone/battery dropdowns, CalendarIcon). Now reads sidebarFilteredFlightIds from Zustand store. flightStore.ts: Added sidebarFilteredFlightIds Set<number> and setSidebarFilteredFlightIds action. FlightList.tsx syncs filtered IDs via useEffect.",
-      "weather_modal_fix": "WeatherModal.tsx: Rendered via createPortal to document.body (escapes parent stacking contexts). Adds modal-open class to body for scrollbar suppression.",
-      "replay_telemetry_overlay": "FlightMap.tsx: New telemetry prop from Dashboard. replayTelemetry memo interpolates all telemetry fields at replay position. Fixed overlay (top-right, map-overlay style) shows height, speed, distance, battery (color-coded), voltage, temp, satellites, pitch/roll/yaw, and lat/lng. Hover tooltip paused during replay.",
-      "telemetry_toggle_rename": "FlightMap.tsx: Toggle label renamed from 'Tooltip' to 'Telemetry'."
-    },
-    "map_area_filter_and_import_ux": {
-      "description": "Overview map area filter for geographic filtering, import section auto-collapse, and UI polish.",
-      "map_area_filter": "FlightList.tsx: New 'Overview map area filter' toggle in sidebar filters. When enabled, filters flights to only those with home coordinates visible on the overview map. FlightClusterMap.tsx: Tracks map bounds via onMoveEnd/onLoad handlers, passes bounds to store. Filter integrated into filteredFlights useMemo with bounds check.",
-      "map_visual_feedback": "FlightClusterMap.tsx: When filter active, map card shows green glow border (ring-2 ring-emerald-500/40 shadow) and title changes to 'Flight Locations — Global filter active' in emerald. mapAreaFilterEnabled added to 'Filters — Active' header check.",
-      "reset_zoom_button": "FlightClusterMap.tsx: 'Reset zoom' button in bottom-right corner. Uses allFlights prop (all flights, not just filtered) to fit bounds to entire dataset.",
-      "import_auto_collapse": "Dashboard.tsx: Import section now auto-collapses when flights exist in database, auto-expands when empty. Uses new isFlightsInitialized store state to wait for DB load before determining collapsed state. No longer persisted to localStorage.",
-      "store_changes": "flightStore.ts: Added isFlightsInitialized (true after first loadFlights), mapAreaFilterEnabled, mapVisibleBounds, setMapAreaFilterEnabled, setMapVisibleBounds."
-    },
-    "keyboard_navigation_and_ui_polish": {
-      "description": "Keyboard shortcuts for accessibility, arrow key dropdown navigation, filter UI improvements, and auto-clear selection when filtered out.",
-      "keyboard_shortcuts": "FlightList.tsx: Up/Down arrow keys navigate flight list (visual preview only). Enter key confirms and loads the selected flight. Scroll-into-view on navigation. SettingsModal.tsx and WeatherModal.tsx: Escape key closes modal (SettingsModal respects isBusy state).",
-      "dropdown_arrow_keys": "Select.tsx: Added highlightedIndex state, ArrowUp/Down navigate options, Enter selects, Escape closes, mouse hover updates highlight. Removed duplicate onKeyDown handler that caused double-skip bug. FlightList.tsx: Sort dropdown, export dropdown, and tag dropdown all support arrow key navigation with highlighted state and Enter to confirm.",
-      "filter_layout": "FlightList.tsx: Inline filter layout with consistent 52px label width column. Duration slider row restructured with flex layout. Duration value display centered. Tag dropdown overflow fixed with left-0 right-0 positioning and overflow-hidden.",
-      "tag_sorting": "FlightList.tsx: Tags in dropdown sorted with selected tags first, then alphabetically.",
-      "auto_clear_selection": "FlightList.tsx: Selection automatically cleared when currently selected flight is not in filtered results or when filters return no results. Prevents stale cached data from showing on map/charts."
-    },
-    "maintenance_tracking": {
-      "description": "Maintenance tracking section in Overview for batteries and aircraft with configurable thresholds, progress bars, and date-based maintenance recording.",
-      "store": "flightStore.ts: Added maintenanceThresholds (battery/aircraft flights and airtime), maintenanceLastReset (per-serial ISO timestamps), setMaintenanceThreshold(), performMaintenance(type, serial, date?), getMaintenanceLastReset(). All persisted to localStorage.",
-      "component": "Overview.tsx: MaintenanceSection component with battery and aircraft columns. Threshold inputs with Apply buttons. All items list with clickable multi-select (checkboxes). Progress bars for flights and airtime since last maintenance.",
-      "progress_colors": "getProgressBarColor() and getProgressTextColor(): <60% green, 60-74% yellow, 75-89% orange, 90%+ red. Applied to both bar fill and text labels.",
-      "date_picker": "DayPicker (react-day-picker) for selecting maintenance date. Defaults to today, future dates disabled. Opens above button (bottom-full). Theme-responsive styling (light/dark).",
-      "multi_select": "Replaced native <select> with multi-select checkbox dropdowns matching FlightList filter panel style. bg-drone-surface, border-gray-700 in dark mode. Clear selection option.",
-      "layout": "40% width for date picker, 60% for Maintenance Done button. Row height h-9 (36px)."
-    },
-    "deduplication_exact_match": {
-      "description": "Changed flight deduplication from 60-second time window to exact timestamp match.",
-      "database": "database.rs: is_duplicate_flight() changed from 'ABS(EPOCH(...)) < 60' to exact 'start_time = ?::TIMESTAMPTZ' comparison. deduplicate_flights() bulk cleanup also uses exact match 'f1.start_time = f2.start_time'.",
-      "behavior": "Flights are only considered duplicates if drone_serial + battery_serial + start_time are all identical. No more time window tolerance."
-    },
-    "light_mode_contrast_fix": {
-      "description": "Fixed low contrast text in light mode for filter value labels.",
-      "flightlist": "FlightList.tsx: Duration/Altitude/Distance filter value spans ('Any', range values) now use isLight ? 'text-gray-700' : 'text-gray-200' for proper contrast. Added themeMode from store and isLight computed value."
-    },
-    "bulk_tag_operations": {
-      "description": "Added bulk tag management buttons in sidebar for operating on filtered flights.",
-      "untag_filtered": "FlightList.tsx: 'Untag filtered' button removes selected tag filter(s) from all filtered flights. Requires tag filter selection, shows inline confirmation before proceeding, progress overlay during operation.",
-      "bulk_tag_filtered": "FlightList.tsx: 'Bulk tag filtered' button adds a manual tag to all filtered flights. Inline input with autocomplete suggestions, progress overlay during operation.",
-      "ui": "Both buttons positioned below Export/Delete buttons in sidebar. Orange color for untag, violet for bulk tag. Disabled with gray background when prerequisites not met.",
-      "store": "flightStore.ts: Added clearFlightDataCache() to invalidate cached flight data after bulk operations so UI reflects tag changes immediately."
-    },
-    "third_party_app_support": {
-      "description": "Added support for DJI logs created by third-party apps (Dronelink, DroneDeploy) with automatic fallback keychain fetching and M-SDK auto-tag.",
-      "fallback_mechanism": "parser.rs: get_frames() tries standard keychain fetch first. On failure, retries with Department::DJIFly override via keychains_request_with_custom_params(). This works because third-party apps write non-standard metadata (app_version: '0.0.0') that DJI API rejects.",
-      "m_sdk_tag": "parser.rs: When DJIFly fallback succeeds, 'M-SDK' auto-tag is added to the flight to identify third-party app logs.",
-      "cli_equivalent": "dji-log --api-key KEY file.txt --csv out.csv --api-custom-department 3"
-    },
-    "equipment_names_sync": {
-      "description": "Battery and aircraft custom names now persist to database instead of localStorage, enabling cross-device sync in Docker/web deployments.",
-      "database": "database.rs: New equipment_names table (serial, equipment_type, display_name, updated_at). CRUD methods: set_equipment_name(), get_equipment_names(), get_all_equipment_names().",
-      "server": "server.rs: GET /api/equipment_names returns all names, POST /api/equipment_names saves individual name.",
-      "tauri": "main.rs: get_equipment_names and set_equipment_name commands for desktop mode.",
-      "frontend": "api.ts: getEquipmentNames() and setEquipmentName() with dual-mode support. flightStore.ts: renameBattery/renameDrone now call API (optimistic update + localStorage cache). loadEquipmentNames() fetches from server on app load.",
-      "behavior": "Names load from localStorage instantly on page load, then sync from server. Rename operations update state immediately, cache to localStorage, then persist to server."
-    },
-    "flight_messages": {
-      "description": "Display flight tips and warnings from DJI logs via a dedicated modal and replay overlay.",
-      "database": "database.rs: New flight_messages table (flight_id, timestamp_ms, message, message_type). CRUD methods for insert/query/delete messages.",
-      "parser": "parser.rs: extract_messages() pulls AppTip and AppWarn messages from parsed frames. Messages included in ParseResult.",
-      "server": "server.rs: Messages returned with flight data response via FlightDataResponse.",
-      "frontend": "FlightMessagesModal.tsx: Dedicated modal showing all messages in a scrollable list with timestamp, color-coded type (tip=blue, warn=amber), and message text. Dashboard.tsx: Chat-bubble icon button with red count badge in the map panel header, rendered only when messages exist. FlightMap.tsx: activeMessage toast overlay at bottom-center of map during replay, showing the current message when replay position crosses a message timestamp.",
-      "csv_export": "CSV export includes messages column as JSON for re-import preservation."
-    },
-    "map_hover_battery_status": {
-      "description": "Added battery status indicator to flight map hover tooltip.",
-      "component": "FlightMap.tsx: Hover tooltip now shows battery percentage with color-coded styling matching replay overlay (green/yellow/orange/red based on level)."
-    },
-    "csv_notes_reimport": {
-      "description": "Notes field preserved during CSV re-import.",
-      "parser": "dronelogbook_parser.rs: Parses notes field from CSV metadata column. Notes included in ParseResult.",
-      "database": "database.rs: Notes saved to flights table on import."
-    },
-    "keep_uploaded_files": {
-      "description": "Optional feature to retain copies of uploaded flight log files with hash-based deduplication.",
-      "backend_tauri": "main.rs: KeepUploadSettings struct, get_keep_upload_settings/set_keep_upload_settings commands, copy_uploaded_file helper. Files copied to 'uploaded' folder inside app data dir using file hash as filename. import_log copies file on both successful import and duplicate skip.",
-      "backend_web": "server.rs: copy_uploaded_file_web function. Reads KEEP_UPLOADED_FILES env var first, falls back to config.json setting. Files stored in uploaded/ subfolder of DATA_DIR.",
-      "frontend": "api.ts: KeepUploadSettings interface (enabled, folderPath), getKeepUploadSettings/setKeepUploadSettings functions (return null in web mode). SettingsModal.tsx: Toggle switch and folder picker (desktop only, hidden in web mode).",
-      "docker": "docker-compose.yml: KEEP_UPLOADED_FILES env var (commented by default). Volume mount for uploaded folder.",
-      "behavior": "Enabled by default on desktop. Files are copied using their SHA256 hash as filename to deduplicate identical files. Files are copied even when flight is skipped as duplicate, ensuring the original log is preserved."
-    },
-    "cell_voltages": {
-      "description": "Per-cell battery voltage tracking from DJI logs with telemetry chart and CSV export.",
-      "parser": "parser.rs: Extracts cell_voltages (Vec<f64>) from battery.cell_voltages for each telemetry frame. Stored as ordered list of cell voltages (e.g., [4.038, 4.037, 4.027]).",
-      "database": "database.rs: cell_voltages VARCHAR column added to telemetry table. Stored as JSON string on insert, deserialized on query. Migration adds column to existing databases.",
-      "models": "models.rs: cell_voltages: Option<Vec<f64>> in TelemetryPoint and TelemetryRecord. TelemetryData has cell_voltages: Vec<Option<Vec<f64>>>.",
-      "frontend": "TelemetryCharts.tsx: Cell Voltages chart with dynamic legend (Cell 1, Cell 2, etc.). Shows individual cell voltage trends over time. Chart only rendered when cell voltage data exists.",
-      "export": "exportUtils.ts: CSV export includes cell_voltages column as JSON array. CSV import via dronelogbook_parser.rs parses JSON arrays with backward compatibility (missing column = None). Uses parse_csv_line() for quoted field handling.",
-      "backup": "Automatic via COPY telemetry. Cell voltages included in backup/restore cycle."
-    },
-    "locale_i18n": {
-      "description": "Full internationalization (i18n) support with language and locale selection.",
-      "translations": "src/i18n/: i18next-based translation system. Locales in src/i18n/locales/ for de, en, es, fr, it, ja, ko, nl, pl, pt, zh. All UI strings use translation keys.",
-      "locale": "Number and date formatting adapts to the selected locale (e.g., decimal separators, date order). Language dropdown in Settings shows all available languages.",
-      "store": "flightStore.ts: language preference persisted to localStorage. Applied on app load."
-    },
-    "component_serials": {
-      "description": "Full-length aircraft and battery serial numbers extracted from ComponentSerial records in DJI logs.",
-      "parser": "parser.rs: Reads ComponentSerial records (up to 50 chars) from DJI log frames, used preferentially over shorter OSD serial fields. Enables full 20-character Enterprise drone serials.",
-      "behavior": "Aircraft serial (droneSerial) and battery serial (batterySerial) now reflect the longer ComponentSerial value when available."
-    },
-    "telemetry_type_migration": {
-      "description": "Fixed data type migration for telemetry table columns to prevent dropping telemetry data when schema evolves.",
-      "database": "database.rs: Type migration logic ensures existing telemetry data is preserved when column types change, replacing a previous drop-and-recreate approach that was losing data."
-    },
-    "time_format_selection": {
-      "description": "User-selectable 12-hour or 24-hour time display format across the entire UI.",
-      "store": "flightStore.ts: timeFormat state ('12h' | '24h'), persisted to localStorage. formatTime() utility updated to respect the preference.",
-      "ui": "SettingsModal.tsx: Time Format dropdown (12-hour / 24-hour) in Preferences column. Affects all timestamp displays: FlightList.tsx, FlightStats.tsx, Overview.tsx, ManualEntryModal.tsx, FlightMessagesModal.tsx, and HTML report."
-    },
-    "woodpecker_ci": {
-      "description": "Woodpecker CI pipeline for building and pushing Docker images to Codeberg registry.",
-      "ci": ".woodpecker/docker.yml: Uses codeberg.org/woodpecker-plugins/docker-buildx:6.0.3. Triggers on tag/release/manual events (not every push). Builds linux/amd64 only (privileged mode not available on Codeberg CI). auto_tag:true generates versioned tags (e.g. 2.22.0, 2.22, 2) plus latest. Requires codeberg_token, docker_username, docker_password secrets. Docker Hub login block added to avoid rate limits during base image pulls."
-    }
-  },
-  "behavior": {
-    "theme": "Global theme (system/light/dark) applied to body, maps, and charts.",
-    "units": "Metric/Imperial conversions for speed, height, distance.",
-    "x_axis_ticks": "Shared time axis labels aligned across charts; labels rotated and overlap hidden."
-  },
-  "data_model": {
-    "flight": {
-      "fields": [
-        "id",
-        "fileName",
-        "displayName",
-        "startTime",
-        "durationSecs",
-        "totalDistance",
-        "droneModel",
-        "droneSerial",
-        "aircraftName",
-        "batterySerial",
-        "tags"
-      ]
-    },
-    "telemetry": {
-      "fields": [
-        "time",
-        "latitude",
-        "longitude",
-        "height",
-        "vpsHeight",
-        "altitude",
-        "speed",
-        "velocityX",
-        "velocityY",
-        "velocityZ",
-        "battery",
-        "batteryVoltage",
-        "batteryTemp",
-        "cellVoltages",
-        "pitch",
-        "roll",
-        "yaw",
-        "rcSignal",
-        "rcUplink",
-        "rcDownlink",
-        "satellites",
-        "distanceToHome"
-      ]
+    "config_files": {
+      ".env": "DJI API key environment variable",
+      "config.json": "Local config (API key, smart tags setting) — stored in app data dir",
+      "context.json": "Machine-readable project context for LLM reference (gitignored)"
     }
   },
   "database": {
-    "path": "~/.local/share/com.drone-logbook.app/flights.db (desktop) or /data/drone-logbook/flights.db (Docker)",
+    "engine": "DuckDB (embedded, bundled via duckdb-rs)",
+    "location": {
+      "desktop": "~/.local/share/com.drone-logbook.app/flights.db",
+      "docker": "/data/drone-logbook/flights.db"
+    },
     "tables": {
-      "flights": [
-        "id",
-        "file_name",
-        "display_name",
-        "file_hash",
-        "drone_model",
-        "drone_serial",
-        "aircraft_name",
-        "battery_serial",
-        "start_time",
-        "end_time",
-        "duration_secs",
-        "total_distance",
-        "max_altitude",
-        "max_speed",
-        "home_lat",
-        "home_lon",
-        "point_count",
-        "imported_at",
-        "notes"
+      "flights": {
+        "description": "Flight metadata — one row per imported or manually created flight",
+        "columns": [
+          "id (BIGINT PK — timestamp + random)",
+          "file_name (VARCHAR)",
+          "display_name (VARCHAR)",
+          "file_hash (VARCHAR — SHA256, unique constraint for duplicate detection)",
+          "drone_model (VARCHAR)",
+          "drone_serial (VARCHAR)",
+          "aircraft_name (VARCHAR)",
+          "battery_serial (VARCHAR)",
+          "start_time (TIMESTAMPTZ)",
+          "end_time (TIMESTAMPTZ)",
+          "duration_secs (DOUBLE)",
+          "total_distance (DOUBLE — meters)",
+          "max_altitude (DOUBLE — meters)",
+          "max_speed (DOUBLE — m/s)",
+          "home_lat (DOUBLE)",
+          "home_lon (DOUBLE)",
+          "point_count (INTEGER)",
+          "photo_count (INTEGER — detected from telemetry transitions)",
+          "video_count (INTEGER — detected from telemetry transitions)",
+          "imported_at (TIMESTAMPTZ)",
+          "notes (VARCHAR)",
+          "color (VARCHAR — hex color code, default '#7dd3fc')"
+        ]
+      },
+      "telemetry": {
+        "description": "Per-frame telemetry data — many rows per flight, bulk inserted via DuckDB Appender",
+        "columns": [
+          "flight_id (BIGINT FK)",
+          "timestamp_ms (BIGINT)",
+          "latitude (DOUBLE)",
+          "longitude (DOUBLE)",
+          "altitude (FLOAT)",
+          "height (FLOAT)",
+          "vps_height (FLOAT)",
+          "altitude_abs (FLOAT)",
+          "speed (FLOAT)",
+          "velocity_x (FLOAT)",
+          "velocity_y (FLOAT)",
+          "velocity_z (FLOAT)",
+          "pitch (FLOAT)",
+          "roll (FLOAT)",
+          "yaw (FLOAT)",
+          "gimbal_pitch (FLOAT)",
+          "gimbal_roll (FLOAT)",
+          "gimbal_yaw (FLOAT)",
+          "battery_percent (INTEGER)",
+          "battery_voltage (FLOAT)",
+          "battery_current (FLOAT)",
+          "battery_temp (FLOAT)",
+          "cell_voltages (VARCHAR — JSON array)",
+          "flight_mode (VARCHAR)",
+          "gps_signal (INTEGER)",
+          "satellites (INTEGER)",
+          "rc_signal (INTEGER)",
+          "rc_uplink (INTEGER)",
+          "rc_downlink (INTEGER)",
+          "rc_aileron (FLOAT)",
+          "rc_elevator (FLOAT)",
+          "rc_throttle (FLOAT)",
+          "rc_rudder (FLOAT)",
+          "is_photo (BOOLEAN)",
+          "is_video (BOOLEAN)"
+        ],
+        "notes": [
+          "Column order is strictly enforced; mismatches trigger automatic rebuild",
+          "Latitude/longitude use DOUBLE precision; other metrics use FLOAT for ~50% storage reduction",
+          "Downsampled to ~5000 points (1s buckets) for frontend queries"
+        ]
+      },
+      "flight_tags": {
+        "description": "Per-flight tags with type indicator",
+        "columns": [
+          "flight_id (BIGINT FK)",
+          "tag (VARCHAR)",
+          "tag_type (VARCHAR — 'auto' or 'manual')"
+        ]
+      },
+      "flight_messages": {
+        "description": "In-flight tips, warnings, and state-change messages from DJI logs",
+        "columns": [
+          "flight_id (BIGINT FK)",
+          "timestamp_ms (BIGINT)",
+          "message (VARCHAR)",
+          "message_type (VARCHAR — 'tip', 'warn', 'caution')"
+        ],
+        "notes": [
+          "PK includes message text to support multiple messages at the same timestamp"
+        ]
+      },
+      "keychains": {
+        "description": "Cached DJI encryption keys for offline log decryption",
+        "columns": [
+          "serial_number (VARCHAR PK)",
+          "encryption_key (VARCHAR)",
+          "fetched_at (TIMESTAMPTZ)"
+        ]
+      },
+      "equipment_names": {
+        "description": "Custom display names for drones and batteries (cross-device sync)",
+        "columns": [
+          "serial (VARCHAR PK)",
+          "equipment_type (VARCHAR — 'battery' or 'drone')",
+          "display_name (VARCHAR)",
+          "updated_at (TIMESTAMPTZ)"
+        ]
+      },
+      "settings": {
+        "description": "Key-value store for app flags (e.g., duplicate_checked)",
+        "columns": [
+          "key (VARCHAR PK)",
+          "value (VARCHAR)",
+          "updated_at (TIMESTAMPTZ)"
+        ]
+      }
+    },
+    "migrations": "Schema migrations run on startup — add missing columns, type upgrades (DOUBLE→FLOAT), primary key expansions. Non-destructive: never drops existing data.",
+    "backup_format": "Gzip-compressed tar archive of Parquet files (flights, telemetry, flight_tags, keychains, flight_messages, equipment_names). Restore uses upsert semantics."
+  },
+  "features": {
+    "import_and_parsing": {
+      "supported_formats": [
+        "DJI flight logs (.txt) — parsed via dji-log-parser, supports V13+ encrypted logs",
+        "Litchi CSV exports — auto-detects units from column headers, maps numeric drone type codes",
+        "Airdata CSV exports — comprehensive field mapping with unit detection",
+        "Open DroneLog CSV re-import — preserves notes, colors, and metadata"
       ],
-      "telemetry": [
-        "flight_id",
-        "timestamp_ms",
-        "latitude",
-        "longitude",
-        "altitude",
-        "height",
-        "vps_height",
-        "altitude_abs",
-        "speed",
-        "velocity_x",
-        "velocity_y",
-        "velocity_z",
-        "pitch",
-        "roll",
-        "yaw",
-        "gimbal_pitch",
-        "gimbal_roll",
-        "gimbal_yaw",
-        "battery_percent",
-        "battery_voltage",
-        "battery_current",
-        "battery_temp",
-        "cell_voltages",
-        "flight_mode",
-        "gps_signal",
-        "satellites",
-        "rc_signal",
-        "rc_uplink",
-        "rc_downlink"
+      "third_party_support": "Dronelink and DroneDeploy logs supported via DJIFly department fallback. Auto-tagged with 'M-SDK'.",
+      "deduplication": "Dual-layer: file hash (SHA256) prevents re-importing the same file; flight signature (drone_serial + battery_serial + exact start_time) prevents importing the same flight from different export versions.",
+      "batch_import": "Multi-file selection with per-file progress counter (X of Y), cooldown between files, duplicate skip tracking.",
+      "folder_sync": "Web/Docker mode: mount a folder via SYNC_LOGS_PATH, import unprocessed files manually or on a cron schedule (SYNC_INTERVAL).",
+      "keep_uploaded_files": "Optional feature to retain copies of log files with SHA256 hash-based filename deduplication. Enabled by default on desktop.",
+      "manual_entry": "Create flight records without log files — collects aircraft, serials, coordinates, duration, optional distance/altitude/notes. Auto-tagged 'Manual Entry'."
+    },
+    "flight_visualization": {
+      "map": {
+        "engine": "MapLibre GL with deck.gl overlay via MapboxOverlay",
+        "map_types": [
+          "Satellite (maxzoom 18)",
+          "Topographic",
+          "OpenStreetMap"
+        ],
+        "flight_path": "3D Catmull-Rom spline-smoothed path with shadow layer, gradient coloring, and start/end/home markers",
+        "color_modes": [
+          "Start to End (progress)",
+          "Height",
+          "Speed",
+          "Distance from Home",
+          "Video Segment"
+        ],
+        "terrain": "3D terrain via MapLibre DEM (maxzoom 12), minimum zoom level 10",
+        "settings_panel": "Collapsible panel: color-by, aircraft toggle, media events toggle, tooltip toggle, line thickness (1-5)"
+      },
+      "replay": {
+        "controls": "Play/pause, seek slider, speed selector (0.5x, 1x, 2x, 4x, 8x, 16x)",
+        "aircraft_marker": "3D-aware ScatterplotLayer marker following path at correct altitude",
+        "telemetry_overlay": "Live-interpolated height, speed, distance, battery (color-coded), voltage, temp, satellites, attitude, coordinates",
+        "rc_joystick_overlay": "Progressive-fill bar indicators for throttle, rudder, elevator, aileron. Theme-aware (cyan on dark, dark slate on light).",
+        "flight_messages_overlay": "Toast notifications at bottom of map during replay when message timestamps are reached"
+      },
+      "media_events": "Photo and video capture points displayed on flight path (ScatterplotLayer icons)"
+    },
+    "telemetry_charts": {
+      "engine": "ECharts (echarts-for-react)",
+      "chart_panels": [
+        "Height / VPS / Altitude",
+        "Speed / Velocity XYZ",
+        "Battery Percent / Voltage / Temperature",
+        "Cell Voltages (dynamic legend per cell)",
+        "Attitude (Pitch / Roll / Yaw)",
+        "RC Signal / Uplink / Downlink",
+        "GPS Satellites",
+        "Distance to Home"
       ],
-      "flight_tags": [
-        "flight_id",
-        "tag",
-        "tag_type"
-      ],
-      "keychains": [
-        "serial_number",
-        "encryption_key",
-        "fetched_at"
-      ],
-      "settings": [
-        "key",
-        "value",
-        "updated_at"
-      ],
-      "flight_messages": [
-        "flight_id",
-        "timestamp_ms",
-        "message",
-        "message_type"
-      ],
-      "equipment_names": [
-        "serial",
-        "equipment_type",
-        "display_name",
-        "updated_at"
+      "interactions": [
+        "Synchronized zoom across all charts",
+        "Global drag-to-zoom toggle + reset button",
+        "Per-chart configurable field selection (max 4 fields, searchable dropdown, persisted to localStorage)",
+        "Hover tooltip with pill-style header across all charts",
+        "Chart sync with map replay position"
       ]
     },
-    "notes": [
-      "Telemetry table column order is enforced; if mismatched it rebuilds automatically.",
-      "Bulk inserts use DuckDB Appender matching the exact column order above.",
-      "Downsampling occurs when telemetry points exceed ~5000 (1s buckets).",
-      "Map track altitude uses COALESCE(height, vps_height, altitude) for relative 3D paths. KML export uses COALESCE(altitude, height, vps_height) for absolute mode.",
-      "App data dir structure: flights.db + keychains/ + uploaded/ (when keep uploaded files enabled).",
-      "Failed telemetry inserts trigger automatic flight metadata cleanup.",
-      "flight_tags table stores per-flight tags with tag_type (auto/manual). Included in backup/restore. Migration adds tag_type column if missing.",
-      "Smart tags config (enabled/disabled) stored in config.json alongside API key."
-    ]
+    "organization": {
+      "smart_tags": {
+        "auto_tags": [
+          "Night Flight",
+          "High Speed",
+          "Cold Battery",
+          "Heavy Load",
+          "Low Battery",
+          "High Altitude",
+          "Long Distance",
+          "Long Flight",
+          "Short Flight",
+          "Aggressive Flying",
+          "No GPS",
+          "M-SDK"
+        ],
+        "location_tags": "Offline reverse geocoding: country and continent from takeoff coordinates (via reverse_geocoder crate with bundled GeoNames dataset)",
+        "format_tags": [
+          "Litchi",
+          "Airdata",
+          "Manual Entry"
+        ],
+        "manual_tags": "User-created violet capsules. Add via FlightStats inline input with autocomplete.",
+        "tag_types": "Auto tags (teal capsules) vs manual tags (violet capsules). Configurable per-type enable/disable.",
+        "bulk_operations": "'Untag filtered' removes selected tags from all filtered flights. 'Bulk tag filtered' adds a manual tag to all filtered flights."
+      },
+      "color_management": "Assign custom hex colors to flights. Color-based sorting and filtering in flight list.",
+      "flight_list": {
+        "display": "Compact list with display name, date, duration, distance subtitle. Inline rename (pencil icon) and delete (trash icon).",
+        "sorting": "By name, date, duration, distance, or color. Ascending/descending toggle.",
+        "search": "Case-insensitive name search",
+        "keyboard_navigation": "Up/Down arrows browse, Enter selects and loads. Auto-clear selection when filtered out.",
+        "context_menu": "Rename, Delete, Regenerate Smart Tags, Generate FlyCard, Export (CSV/JSON/GPX/KML)"
+      },
+      "filters": {
+        "types": [
+          "Date range (calendar picker)",
+          "Drone (multi-select)",
+          "Battery (multi-select)",
+          "Color",
+          "Tag (multi-select)",
+          "Duration range slider",
+          "Altitude range slider",
+          "Distance range slider",
+          "Map area filter (Overview map bounds)"
+        ],
+        "inversion": "Filter inversion button: individually negates each active filter using AND logic (NOT A AND NOT B).",
+        "auto_refresh": "Slider ranges and dropdown options auto-refresh after flight deletion."
+      }
+    },
+    "overview_dashboard": {
+      "stats_cards": [
+        "Total Flights",
+        "Total Distance",
+        "Total Time",
+        "Data Points",
+        "Total Photos",
+        "Total Videos",
+        "Max Altitude",
+        "Max Distance from Home",
+        "Avg Distance",
+        "Avg Duration",
+        "Avg Speed"
+      ],
+      "activity_heatmap": "365-day 7×52 grid showing flight counts per day. Double-click to filter to that date.",
+      "charts": "Donut charts: flights by drone model, battery serial, and duration bucket (Short <10min, Mid 10-20min, Long >20min).",
+      "cluster_map": "MapLibre map with clustered flight locations. Click clusters to zoom. Map area filter toggle with green glow border.",
+      "top_flights": "Top 3 longest (by duration) and top 3 furthest (by distance from home).",
+      "battery_health": "Per-battery health bars, inline rename, per-minute usage history plot (scatter + smoothed line) with zoom slider.",
+      "maintenance_tracking": "Configurable flight and airtime thresholds for batteries and aircraft. Color-coded progress bars (green <60%, yellow 60-74%, orange 75-89%, red 90%+). Date-based maintenance recording.",
+      "filter_sync": "Overview uses sidebar-filtered flight IDs from Zustand store (sidebarFilteredFlightIds) instead of its own filter bar."
+    },
+    "flight_messages": {
+      "sources": "DJI AppTip/AppWarn records from parsed frames + state-change tracking (warning flags, voltage alerts, flight mode changes, GPS state changes, battery level warnings)",
+      "display": "Chat-bubble icon with red count badge in map header. FlightMessagesModal with scrollable color-coded list (blue=tip, amber=warn).",
+      "replay_integration": "Active message toast overlay at bottom of map during flight replay."
+    },
+    "exports": {
+      "single_flight": [
+        "CSV (all telemetry + cell_voltages as JSON array)",
+        "JSON (metadata + telemetry)",
+        "GPX (GPS track)",
+        "KML (absolute altitude mode with fallback: altitude → height → vps_height → 0)"
+      ],
+      "bulk": "ZIP archive of selected export format for all filtered flights",
+      "summary_csv": "Aggregate CSV with one row per flight (metadata only)",
+      "airdata_csv": "Airdata-compatible CSV export format",
+      "flycard": "1080×1080 shareable image with map background, flight path overlay, and stats. Uses html2canvas. Desktop uses native save dialog.",
+      "html_report": "A4-width print-ready regulation report. Configurable title, pilot name, field groups (General, Equipment, Stats, Battery, Weather, Media). Grouped by day with subtotals. Print as PDF via Ctrl+P. Preferences persist across sessions.",
+      "manual_entry_exports": "CSV: single row with home coordinates. GPX: waypoint. KML: point placemark."
+    },
+    "backup_and_restore": {
+      "format": "Gzip-compressed tar archive (.backup) of Parquet files",
+      "contents": [
+        "flights.parquet",
+        "telemetry.parquet",
+        "flight_tags.parquet",
+        "keychains.parquet",
+        "flight_messages.parquet",
+        "equipment_names.parquet"
+      ],
+      "restore": "Upsert semantics (delete-then-insert for flights/telemetry, INSERT OR REPLACE for keychains)."
+    },
+    "settings": {
+      "preferences": [
+        "Units (metric/imperial)",
+        "Theme (system/light/dark)",
+        "Language (11 locales)",
+        "Time Format (12h/24h)",
+        "Hide Serial Numbers toggle"
+      ],
+      "smart_tags": "Enable/disable auto-tagging, per-type configuration, regenerate for all flights, remove all auto tags",
+      "api_key": "DJI API key management: personal key, default key, or remove. Stored in config.json.",
+      "keep_uploaded_files": "Toggle + folder picker (desktop only). Files stored with SHA256 hash filenames.",
+      "app_info": "Version display with automatic update check against GitHub releases. Green 'Latest' or amber 'Update to vX.X.X' badge.",
+      "supporter_badge": "SHA-256 verified activation code. Amber gradient badge in sidebar. Ko-fi donation linked.",
+      "layout": "Two-column modal (max-w-3xl): Left (Units, Theme, Language, Smart Tags, API Key) + Right (Donation, Badge, Info, Backup, Delete)."
+    },
+    "ui_polish": {
+      "theming": "CSS variables in src/index.css. body classes: theme-light / theme-dark. Light mode uses !important overrides. Instant theme switching.",
+      "mobile": "Responsive layout with adjusted defaults: telemetry panel off on mobile, compact sidebar, adjusted banner. Map rendering optimized for mobile.",
+      "pwa": "Progressive Web App manifest and apple touch icon for browser installation.",
+      "modals": "Escape key closes modals. WeatherModal uses createPortal for proper stacking. Scrollbar suppression via modal-open class.",
+      "sidebar": "Collapsible filter and import sections. Width persisted to localStorage. Import auto-collapses when flights exist.",
+      "single_instance": "tauri-plugin-single-instance ensures only one desktop app window."
+    }
   },
   "api_endpoints": {
-    "note": "Web mode only (Axum server). All endpoints mirror Tauri commands.",
-    "routes": [
-      "POST   /api/import            - Upload flight log (multipart)",
-      "GET    /api/flights            - List all flights",
-      "GET    /api/flight_data        - Get telemetry (query: flight_id, max_points)",
-      "GET    /api/overview           - Overview statistics",
-      "DELETE /api/flights/delete     - Delete flight (query: flight_id)",
-      "DELETE /api/flights/delete_all - Delete all flights",
-      "PUT    /api/flights/name       - Rename flight (JSON: flight_id, display_name)",
-      "GET    /api/has_api_key        - Check API key configured",
-      "POST   /api/set_api_key        - Set API key (JSON: api_key)",
-      "GET    /api/app_data_dir       - Data directory path",
-      "GET    /api/app_log_dir        - Log directory path",
-      "POST   /api/flights/tags/add   - Add a manual tag to a flight (JSON: flight_id, tag)",
-      "POST   /api/flights/tags/remove - Remove a tag from a flight (JSON: flight_id, tag)",
-      "GET    /api/tags                - Get all unique tags across all flights",
-      "GET    /api/settings/smart_tags - Check if smart tags are enabled",
-      "POST   /api/settings/smart_tags - Set smart tags enabled (JSON: enabled)",
-      "POST   /api/regenerate_smart_tags - Regenerate auto tags for all flights",
-      "POST   /api/flights/deduplicate    - Remove duplicate flights from database (one-time cleanup)",
-      "GET    /api/backup             - Download compressed database backup (tar.gz of Parquet files)",
-      "POST   /api/backup/restore     - Upload and restore a backup file (multipart)",
-      "GET    /api/sync/config         - Get sync folder configuration (returns syncPath, syncInterval)",
-      "GET    /api/sync/files          - List files in sync folder not yet imported",
-      "POST   /api/sync/file           - Import a single file from sync folder (JSON: filename)",
-      "POST   /api/sync                - Import all pending files from sync folder",
-      "GET    /api/equipment_names     - Get all custom drone and battery display names",
-      "POST   /api/equipment_names     - Set custom display name (JSON: serial, equipment_type, display_name)"
-    ]
-  },
-  "parser": {
-    "version": "dji-log-parser v0.5.7 + custom Litchi CSV parser",
-    "inputs": "DJI .dat/.txt logs, Litchi CSV exports",
-    "outputs": [
-      "Flight metadata (aircraft name, drone model/serial, battery serial, start/end, duration)",
-      "Telemetry arrays (time, position, orientation, battery, RC, GPS, cell voltages)"
+    "note": "Web/Docker mode only (Axum REST API). All endpoints mirror Tauri IPC commands. Frontend adapter in src/lib/api.ts handles both modes.",
+    "flight_management": [
+      "POST   /api/import              — Upload flight log (multipart/form-data)",
+      "POST   /api/manual_flight       — Create manual flight entry",
+      "GET    /api/flights             — List all flights",
+      "GET    /api/flight_data         — Get flight telemetry (query: flight_id, max_points)",
+      "GET    /api/overview            — Overview statistics",
+      "DELETE /api/flights/delete      — Delete flight (query: flight_id)",
+      "DELETE /api/flights/delete_all  — Delete all flights",
+      "POST   /api/flights/deduplicate — Remove duplicate flights",
+      "PUT    /api/flights/name        — Rename flight (JSON: flight_id, display_name)",
+      "PUT    /api/flights/notes       — Update flight notes (JSON: flight_id, notes)",
+      "PUT    /api/flights/color       — Update flight color (JSON: flight_id, color)"
     ],
-    "notes": [
-      "Height uses OSD height when available; VPS height stored separately.",
-      "Altitude fallback uses altitude if height is missing.",
-      "Display name defaults to filename; can be edited in UI.",
-      "Corrupt frames (non-finite lat/lon/alt/speed) are skipped with logging.",
-      "GPS coordinates outside +/-90 lat / +/-180 lon are treated as out-of-range and excluded.",
-      "Altitude/height values >10km and speed >100 m/s are clamped to None.",
-      "V13+ logs require keychain decryption; API key fetched from config or default.",
-      "File deduplication via SHA256 hash prevents re-importing the same log file.",
-      "Flight deduplication via signature (drone_serial + battery_serial + start_time within 60s) prevents importing same flight from different export versions.",
-      "One-time startup deduplication runs on first launch after update to clean existing duplicates; controlled by settings.duplicate_checked flag.",
-      "Parsing runs in spawn_blocking with catch_unwind and 40s timeout for crash safety.",
-      "Smart tags generated from FlightStats: night detection (local hour via lon-based TZ offset), speed, battery, altitude, distance, duration thresholds.",
-      "Offline reverse geocoding via reverse_geocoder crate (bundled GeoNames dataset ~15MB). Returns city name, country (from CC lookup table), and continent.",
-      "Litchi CSV parser auto-detects units from column headers (feet/meters, mph/m/s) and converts to metric. Litchi flights auto-tagged with 'Litchi' tag.",
-      "Litchi drone types mapped from numeric codes (e.g., 62=DJI Mini 3 Pro, 63=DJI Mini 2, 69=DJI Mini 4 Pro, 77=DJI Air 3)."
+    "tags": [
+      "POST   /api/flights/tags/add    — Add manual tag (JSON: flight_id, tag)",
+      "POST   /api/flights/tags/remove — Remove tag (JSON: flight_id, tag)",
+      "GET    /api/tags                — Get all unique tags",
+      "POST   /api/tags/remove_auto    — Remove all auto tags",
+      "POST   /api/regenerate_smart_tags            — Regenerate auto tags for all flights",
+      "POST   /api/regenerate_flight_smart_tags/{id} — Regenerate for one flight"
+    ],
+    "settings": [
+      "GET    /api/has_api_key              — Check if API key configured",
+      "GET    /api/api_key_type             — Get key type (None/Default/Personal)",
+      "POST   /api/set_api_key              — Set API key (JSON: api_key)",
+      "DELETE /api/remove_api_key           — Remove custom key",
+      "GET    /api/settings/smart_tags      — Check smart tags enabled",
+      "POST   /api/settings/smart_tags      — Set smart tags enabled (JSON: enabled)",
+      "GET    /api/settings/enabled_tag_types  — Get enabled tag types",
+      "POST   /api/settings/enabled_tag_types  — Set enabled tag types (JSON: types)"
+    ],
+    "equipment": [
+      "GET    /api/equipment_names     — Get all custom display names",
+      "POST   /api/equipment_names     — Set name (JSON: serial, equipment_type, display_name)"
+    ],
+    "backup": [
+      "GET    /api/backup              — Download backup (.backup file)",
+      "POST   /api/backup/restore      — Upload and restore backup (multipart)"
+    ],
+    "sync": [
+      "GET    /api/sync/config         — Get sync folder config (syncPath, syncInterval)",
+      "GET    /api/sync/files          — List files not yet imported",
+      "POST   /api/sync/file           — Import single file (JSON: filename)",
+      "POST   /api/sync                — Import all pending files"
+    ],
+    "utility": [
+      "GET    /api/app_data_dir        — Data directory path",
+      "GET    /api/app_log_dir         — Log directory path"
     ]
   },
   "commands": {
-    "frontend": [
-      "npm run dev            - Tauri frontend dev server",
-      "npm run dev:web        - Web mode dev server (with /api proxy)",
-      "npm run build          - Tauri frontend build",
-      "npm run build:web      - Web mode frontend build",
-      "npm run preview"
-    ],
-    "tauri": [
-      "npm run tauri          - Full Tauri dev mode",
-      "npm run tauri:nowatch  - Tauri dev without file watching"
-    ],
+    "development": {
+      "desktop": [
+        "npm run tauri — Full Tauri dev mode",
+        "npm run tauri:nowatch — Dev without file watching"
+      ],
+      "web": [
+        "npm run dev:web — Web frontend dev server (with /api proxy)",
+        "cargo run --features web --no-default-features — Backend dev server"
+      ],
+      "frontend_only": [
+        "npm run dev — Vite dev server",
+        "npm run build — Production build",
+        "npm run preview — Preview build"
+      ]
+    },
     "docker": [
-      "docker compose up -d                                    - Run with pre-built GHCR image",
-      "docker compose -f docker-compose-build.yml up -d          - Build from source and run",
-      "docker compose -f docker-compose-build.yml up --build -d  - Force rebuild from source"
+      "docker compose up -d — Run with pre-built GHCR image",
+      "docker compose -f docker-compose-build.yml up -d — Build from source",
+      "docker compose -f docker-compose-build.yml up --build -d — Force rebuild"
     ]
   },
+  "environment_variables": {
+    "DATA_DIR": "Database and config storage (default: /data/drone-logbook)",
+    "RUST_LOG": "Log level: debug, info, warn (default: info)",
+    "DJI_API_KEY": "Override bundled DJI API key for better rate limits",
+    "SYNC_LOGS_PATH": "Path to internal folder for automatic log import (e.g., /sync-logs)",
+    "SYNC_INTERVAL": "Cron expression for scheduled sync (e.g., 0 0 */8 * * *)",
+    "KEEP_UPLOADED_FILES": "When true (default), keeps copies of uploaded log files"
+  },
   "ci_cd": {
-    "build_yml": {
-      "trigger": "on release published",
+    "github_desktop_builds": {
+      "file": ".github/workflows/build.yml",
+      "trigger": "On release published",
       "platforms": [
         "ubuntu-latest",
         "windows-latest",
         "macos-latest"
       ],
       "action": "tauri-apps/tauri-action@v0",
-      "artifacts": "Desktop binaries uploaded to GitHub Release"
+      "output": "Desktop binaries uploaded to GitHub Release"
     },
-    "docker_yml": {
-      "trigger": "on release published + manual dispatch",
+    "github_docker_builds": {
+      "file": ".github/workflows/docker.yml",
+      "trigger": "On release published + manual dispatch",
       "registry": "ghcr.io",
       "image": "ghcr.io/arpanghosh8453/dji-logbook",
-      "tags": "semver (e.g. 1.2.3, 1.2) + latest (auto) on release; custom tag on manual dispatch"
+      "tags": "Semver (e.g. 2.26.0, 2.26) + latest on release; custom tag on manual dispatch"
     },
-    "woodpecker_yml": {
-      "trigger": "on tag/release/manual event (not every push)",
+    "codeberg_woodpecker": {
+      "file": ".woodpecker/docker.yml",
+      "trigger": "On tag/release/manual event",
       "registry": "codeberg.org",
       "image": "codeberg.org/{CI_REPO_OWNER}/open-dronelog",
-      "tags": "auto_tag: true generates versioned tags (e.g. 2.22.0, 2.22, 2) + latest on tag event",
+      "tags": "auto_tag: versioned (e.g. 2.26.0, 2.26, 2) + latest on tag event",
       "plugin": "codeberg.org/woodpecker-plugins/docker-buildx:6.0.3",
-      "platforms": "linux/amd64 (privileged mode not allowed on Codeberg CI)",
-      "secrets": "codeberg_token (push), docker_username + docker_password (Docker Hub pull login to avoid rate limits)"
+      "platform": "linux/amd64",
+      "notes": "Includes nightly build workflow. Docker Hub login to avoid pull rate limits."
     }
-  },
-  "ui": {
-    "themes": "CSS variables in src/index.css; body classes theme-light/theme-dark. Light mode uses !important overrides.",
-    "filters": "Flight list uses date range popover (react-day-picker), drone and battery selects (searchable via type-to-filter), dual-thumb duration slider, and multi-select tag filter. Filter inversion button (circular arrows) individually negates each active filter (AND logic: NOT A AND NOT B). Collapsible filter/import panels persisted to localStorage. Overview shares sidebar filters via store. Selection auto-clears when selected flight is no longer in filtered results.",
-    "keyboard_navigation": "FlightList: Up/Down arrows browse flights (preview highlight), Enter selects and loads. All modals close on Escape. Select/sort/export/tag dropdowns support arrow key navigation with highlighted index.",
-    "flight_list": "Simple compact list with always-visible rename (pencil icon, sky-400) and delete (trash icon, red-400) icons. Subtitle shows date . duration . distance.",
-    "charts": "ECharts with synced zoom; global drag-to-zoom toggle + reset zoom buttons; tooltip header uses pill capsules. Theme-aware base config. Hidden per-chart toolbox enables selection highlight for drag-to-zoom. Per-chart multi-select dropdown (max 4 fields, searchable with checkboxes) lets users choose which telemetry fields to display; settings persisted to localStorage.",
-    "map": "MapLibre terrain with deck.gl overlay. Spline-smoothed color-by gradient path, shadow layer, start/end/home markers, hover tooltip. Replay telemetry overlay with live-interpolated data during playback. RC stick input overlay with progressive-fill bars and theme-aware styling (cyan on dark, dark slate on light). Flight messages badge (chat-bubble icon with red count) in map panel header; opens FlightMessagesModal. Active message toast overlay at bottom-center of map during replay.",
-    "loading": "Spinner uses border-sky-400 for both-mode visibility."
   },
   "known_issues": [
-    "If import fails with column order mismatch, telemetry table rebuild should correct it.",
-    "Node engine warnings may appear for some transient packages; app still runs.",
+    "macOS binaries are unsigned (no Apple Developer account); users need xattr -cr workaround.",
     "Older DJI logs (pre-2020) may produce garbage telemetry values; parser validation filters these out.",
-    "macOS binaries are unsigned (no Apple Developer account); users need xattr -d com.apple.quarantine workaround."
-  ],
-  "notes": {
-    "api_key": "Stored locally in config.json; never sent except to DJI API.",
-    "db_location_desktop": "App data dir under ~/.local/share/com.drone-logbook.app (flights.db + keychains/ + uploaded/)",
-    "db_location_docker": "/data/drone-logbook (persistent volume, includes db and uploaded/ when KEEP_UPLOADED_FILES=true)",
-    "log_location": "Log files under ~/.local/share/com.drone-logbook.app/logs/ (desktop) or stdout (Docker)",
-    "git": {
-      "branch": "main"
-    }
-  }
+    "Node engine warnings may appear for some transient packages; app still runs.",
+    "If import fails with column order mismatch, telemetry table rebuild should correct it automatically."
+  ]
 }

@@ -34,6 +34,7 @@ The frontend automatically routes to the appropriate backend based on the deploy
 | POST | `/api/flights/deduplicate` | Remove duplicate flights based on drone serial + battery serial + start time. Returns count of removed duplicates. |
 | PUT | `/api/flights/name` | Update flight display name. Body: `{ flight_id, display_name }` |
 | PUT | `/api/flights/notes` | Update flight notes. Body: `{ flight_id, notes }` |
+| PUT | `/api/flights/color` | Update custom color for a flight. Body: `{ flight_id, color }` |
 
 ### Tauri Commands (Desktop)
 
@@ -47,6 +48,7 @@ The frontend automatically routes to the appropriate backend based on the deploy
 | `deduplicate_flights` | - | Remove duplicates |
 | `update_flight_name` | `flight_id: i64, display_name: String` | Rename flight |
 | `update_flight_notes` | `flight_id: i64, notes: Option<String>` | Update notes |
+| `update_flight_color` | `flight_id: i64, color: String` | Update flight color |
 | `compute_file_hash` | `file_path: String` | Compute SHA256 hash of a file |
 
 ### Note on Exports
@@ -273,6 +275,7 @@ interface Flight {
   photoCount?: number;
   videoCount?: number;
   tags?: FlightTag[];
+  color?: string;
   notes?: string;
 }
 ```

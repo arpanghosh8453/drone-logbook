@@ -252,6 +252,7 @@ Click the sort dropdown to sort flights by:
 | **Date** | Newest or oldest first |
 | **Duration** | Longest or shortest |
 | **Distance** | Furthest or nearest |
+| **Color** | Sorted by customized flight color |
 
 Toggle ascending/descending with the arrow button.
 
@@ -282,6 +283,11 @@ Click the **Filters** header in the sidebar to expand or collapse the filter sec
 - Multi-select dropdown showing all battery serials
 - Batteries use custom names if you have renamed them
 - Selected batteries appear at the top
+
+#### Color Filter
+
+- Dropdown to select customized assigned flight colors
+- Filter flights that have been assigned a specific color
 
 #### Tag Filter
 
@@ -483,7 +489,7 @@ You can customize which telemetry fields are displayed in each chart category:
 | Control | Function |
 |---------|----------|
 | **3D Toggle** | Switch between 3D terrain and flat map view |
-| **Satellite Toggle** | Switch between satellite imagery and street map |
+| **Map Type** | Switch between Satellite, Topographic, and OpenStreetMap views |
 | **Navigation Controls** | Zoom, rotation, and tilt buttons |
 
 #### Display Options
@@ -540,10 +546,10 @@ The 3D aircraft model follows the flight path at the correct altitude.
 - Distance from home
 - Attitude (pitch/roll/yaw)
 
-**RC Stick Overlay** visualizes controller inputs:
+**RC Joystick Overlay** visualizes controller inputs:
 
-- Left stick: Throttle and Rudder
-- Right stick: Elevator and Aileron
+- Left joystick: Throttle and Rudder
+- Right joystick: Elevator and Aileron
 
 **Flight Messages Overlay** shows in-flight tips and warnings during replay:
 
@@ -553,7 +559,7 @@ The 3D aircraft model follows the flight path at the correct altitude.
 
 ### Flight Messages
 
-When a flight contains in-flight tips or warnings recorded in the DJI log:
+When a flight contains in-flight tips, warnings recorded in the DJI log, or battery level warnings:
 
 - A **chat-bubble icon** with a red count badge appears in the map panel header
 - Click it to open the **Flight Messages Modal**, which shows a full list of messages with:

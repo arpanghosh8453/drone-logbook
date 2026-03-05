@@ -86,13 +86,13 @@
 ## Features
 
 - **High-Performance Analytics**: DuckDB-powered queries with automatic downsampling for large datasets. Free, open source, no subscription required.
-- **Multi-Format Support**: Import DJI logs (.txt) and Litchi CSV exports with automatic unit detection. Third-party apps (Dronelink, DroneDeploy) supported.
+- **Multi-Format Support**: Import DJI logs (.txt), Litchi CSV, and Airdata CSV exports with automatic unit detection. Third-party apps (Dronelink, DroneDeploy) supported.
 - **Smart Deduplication**: Prevents duplicate imports based on drone serial, battery serial, and start time.
-- **Interactive Flight Maps**: 3D terrain, satellite toggle, flight replay with speed control (0.5x-16x), live telemetry overlay, and RC stick input visualization.
+- **Interactive Flight Maps**: 3D terrain, map-type selection (Satellite, Topographic, OpenStreetMap), flight replay with speed control (0.5x-16x), live telemetry overlay, and RC joystick visualization.
 - **Telemetry Charts**: Height, speed, battery, cell voltages, attitude, RC signal, GPS, distance-to-home, and velocity with synchronized drag-to-zoom.
 - **Local-First Storage**: All data in a local DuckDB database. No cloud upload required (except DJI key fetch during first import).
-- **Smart Tags**: Auto-tagging (Night Flight, High Speed, Low Battery, etc.) and offline reverse geocoding for location tags. Manual tags and bulk operations supported.
-- **Filters & Search**: Date range, drone/battery filters, duration/altitude/distance sliders, tag filter, map area filter, and filter inversion.
+- **Smart Tags**: Auto-tagging (Night Flight, High Speed, Low Battery, etc.) and offline reverse geocoding for location tags. Manual tags and bulk operations supported.on.
+- **Filters & Search**: Date range, drone/battery/color filters, duration/altitude/distance sliders, tag filter, map area filter, and filter inversion.
 - **Overview Dashboard**: Aggregate stats, activity heatmap, pie charts by drone/battery/duration, cluster map, and top-flight highlights.
 - **Battery Health**: Per-battery health bars, serial renaming, and per-minute usage history with zoom.
 - **Maintenance Tracking**: Configurable thresholds with color-coded progress bars and date-based maintenance recording.
@@ -100,6 +100,7 @@
 - **HTML Report**: Generate a configurable, print-ready flight regulation report (A4 layout) with selectable field groups, weather data, and day-by-day grouping. Can be printed as PDF via Ctrl+P. Pilot name and field preferences can be customized and will persist across sessions.
 - **Manual Flight Entry**: Record flights without log files with optional coordinates and metadata.
 - **Multi-Language Support**: Full internationalization with 11 language locales (English, German, Spanish, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, Chinese) and locale-aware number and date formatting.
+- **Progressive Web App (PWA)**: Optionally install the application directly from the browser for a native-like experience on desktop and mobile.
 - **Backup & Restore**: Export/import full database across desktop and Docker instances.
 
 ## Accessing flight log files
