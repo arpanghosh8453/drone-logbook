@@ -302,7 +302,7 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Drone Model Chart */}
         <div className="card p-4">
           <h3 className="text-sm font-semibold text-white mb-3">{t('overview.flightsByDrone')}</h3>
@@ -345,6 +345,15 @@ export function Overview({ stats, flights, unitSystem, onSelectFlight }: Overvie
                 { name: t('overview.longDuration'), value: long },
               ].filter((d) => d.value > 0);
             })()}
+            emptyMessage={t('overview.noFlightData')}
+          />
+        </div>
+
+        {/* Time of Day Radial Chart */}
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold text-white mb-3">{t('overview.flightsByTimeOfDay')}</h3>
+          <FlightTimeRadialChart
+            flights={filteredFlights}
             emptyMessage={t('overview.noFlightData')}
           />
         </div>
@@ -1362,6 +1371,133 @@ function DonutChart({
     <div ref={chartRef}>
       <ReactECharts option={option} style={{ height: chartHeight }} />
     </div>
+  );
+}
+
+/**
+ * Estimate the local hour of a flight from its UTC start time and takeoff coordinates.
+ * Uses longitude / 15 approximation for timezone offset (same as Rust parser).
+ */
+function estimateLocalHour(startTime: string, homeLon: number | null | undefined): number {
+  const dt = new Date(startTime);
+  const utcHour = dt.getUTCHours();
+  const tzOffsetHours = homeLon != null ? Math.round(homeLon / 15) : 0;
+  return ((utcHour + tzOffsetHours) % 24 + 24) % 24;
+}
+
+/**
+ * Polar area chart showing flight distribution across 24 hours of the day.
+ * Each segment represents one hour; the radius encodes number of flights.
+ */
+function FlightTimeRadialChart({
+  flights,
+  emptyMessage,
+}: {
+  flights: Flight[];
+  emptyMessage: string;
+}) {
+  const { t } = useTranslation();
+
+  // Bucket flights into 24 hours
+  const hourCounts = useMemo(() => {
+    const counts = new Array(24).fill(0);
+    flights.forEach((f) => {
+      if (!f.startTime) return;
+      const hour = estimateLocalHour(f.startTime, f.homeLon);
+      counts[hour]++;
+    });
+    return counts;
+  }, [flights]);
+
+  const maxCount = Math.max(...hourCounts, 1);
+  const hasData = hourCounts.some((c) => c > 0);
+
+  if (!hasData) {
+    return <p className="text-sm text-gray-400 text-center py-8">{emptyMessage}</p>;
+  }
+
+  // Hour labels for the angle axis (24h clock)
+  const hourLabels = Array.from({ length: 24 }, (_, i) => {
+    if (i === 0) return '12a';
+    if (i === 6) return '6a';
+    if (i === 12) return '12p';
+    if (i === 18) return '6p';
+    return '';
+  });
+
+  // Color gradient: cooler (night) -> warmer (day)
+  const getBarColor = (hour: number) => {
+    if (hour >= 6 && hour < 10) return '#f59e0b';   // Morning - amber
+    if (hour >= 10 && hour < 14) return '#00d4aa';   // Midday - teal
+    if (hour >= 14 && hour < 18) return '#00a0dc';   // Afternoon - blue
+    if (hour >= 18 && hour < 21) return '#8b5cf6';   // Evening - purple
+    return '#6366f1';                                  // Night - indigo
+  };
+
+  const option = {
+    tooltip: {
+      trigger: 'item' as const,
+      backgroundColor: 'rgba(22, 33, 62, 0.95)',
+      borderColor: '#374151',
+      textStyle: { color: '#e5e7eb' },
+      formatter: (params: { dataIndex: number; value: number }) => {
+        const hour = params.dataIndex;
+        const from = hour.toString().padStart(2, '0') + ':00';
+        const to = ((hour + 1) % 24).toString().padStart(2, '0') + ':00';
+        return `<strong>${from} - ${to}</strong><br/>${t('overview.radialTooltip', { count: params.value })}`;
+      },
+    },
+    polar: {
+      radius: ['15%', '85%'],
+    },
+    angleAxis: {
+      type: 'category' as const,
+      data: hourLabels,
+      boundaryGap: true,
+      axisTick: { show: false },
+      axisLabel: {
+        color: '#9ca3af',
+        fontSize: 10,
+        formatter: (value: string) => value,
+      },
+      axisLine: { lineStyle: { color: '#374151' } },
+      splitLine: { show: false },
+      startAngle: 90,
+    },
+    radiusAxis: {
+      type: 'value' as const,
+      max: maxCount,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitLine: {
+        lineStyle: { color: '#374151', type: 'dashed' as const },
+      },
+    },
+    series: [
+      {
+        type: 'bar' as const,
+        coordinateSystem: 'polar' as const,
+        data: hourCounts.map((count, i) => ({
+          value: count,
+          itemStyle: {
+            color: getBarColor(i),
+            borderRadius: 2,
+          },
+        })),
+        barWidth: '65%',
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 8,
+            shadowColor: 'rgba(0, 0, 0, 0.4)',
+          },
+        },
+      },
+    ],
+  };
+
+  return (
+    <ReactECharts option={option} style={{ height: 200 }} />
   );
 }
 
