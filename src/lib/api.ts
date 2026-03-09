@@ -989,3 +989,58 @@ export async function unlockProfile(password: string): Promise<boolean> {
   const invoke = await getTauriInvoke();
   return invoke('unlock_profile', { password }) as Promise<boolean>;
 }
+
+// ============================================================================
+// Supporter Badge (server-side verification)
+// ============================================================================
+
+/** Verify a supporter code on the backend. Returns true if the code is valid. */
+export async function verifySupporterCode(code: string): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/supporter/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('verify_supporter_code', { code }) as Promise<boolean>;
+}
+
+/** Get the supporter badge status from the database. */
+export async function getSupporterStatus(): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/supporter/status');
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('get_supporter_status') as Promise<boolean>;
+}
+
+/** Remove the supporter badge in the database. */
+export async function removeSupporterBadge(): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/supporter/remove', { method: 'POST' });
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('remove_supporter_badge') as Promise<boolean>;
+}
+
+/** Get the donation-acknowledged flag from the database. */
+export async function getDonationAcknowledged(): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/supporter/donation');
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('get_donation_acknowledged') as Promise<boolean>;
+}
+
+/** Set the donation-acknowledged flag in the database. */
+export async function setDonationAcknowledgedApi(acknowledged: boolean): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/supporter/donation', {
+      method: 'POST',
+      body: JSON.stringify({ acknowledged }),
+    });
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('set_donation_acknowledged', { acknowledged }) as Promise<boolean>;
+}

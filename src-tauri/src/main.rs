@@ -1392,6 +1392,94 @@ mod tauri_app {
         Ok(true)
     }
 
+    // ========================================================================
+    // Supporter Badge (server-side verification)
+    // ========================================================================
+
+    /// The SHA-256 hash of the valid supporter code.
+    const SUPPORTER_HASH: &str =
+        "5978f3e898c83b40c90017c88b8048f80a5acfd020bbd073af794e710603067d";
+
+    /// Verify a plaintext supporter code.
+    /// On success the verified state is persisted in the database.
+    #[tauri::command]
+    pub async fn verify_supporter_code(
+        code: String,
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        use sha2::{Sha256, Digest};
+
+        let trimmed = code.trim().to_string();
+        if trimmed.is_empty() {
+            return Err("Code must not be empty".to_string());
+        }
+
+        let mut hasher = Sha256::new();
+        hasher.update(trimmed.as_bytes());
+        let hash_bytes = hasher.finalize();
+        let hash_hex: String = hash_bytes.iter().map(|b| format!("{:02x}", b)).collect();
+
+        if hash_hex != SUPPORTER_HASH {
+            return Ok(false);
+        }
+
+        // Persist verified state in the database
+        let db = state.db_authenticated()?;
+        db.set_setting("supporter_badge_active", "true")
+            .map_err(|e| format!("Failed to save supporter state: {}", e))?;
+        db.set_setting("donation_acknowledged", "true")
+            .map_err(|e| format!("Failed to save donation state: {}", e))?;
+
+        Ok(true)
+    }
+
+    /// Read the supporter badge state from the database.
+    #[tauri::command]
+    pub async fn get_supporter_status(
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        let db = state.db_authenticated()?;
+        let val = db
+            .get_setting("supporter_badge_active")
+            .map_err(|e| format!("Failed to read supporter state: {}", e))?;
+        Ok(val.as_deref() == Some("true"))
+    }
+
+    /// Remove the supporter badge.
+    #[tauri::command]
+    pub async fn remove_supporter_badge(
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        let db = state.db_authenticated()?;
+        db.set_setting("supporter_badge_active", "false")
+            .map_err(|e| format!("Failed to remove supporter state: {}", e))?;
+        Ok(true)
+    }
+
+    /// Read the donation-acknowledged flag from the database.
+    #[tauri::command]
+    pub async fn get_donation_acknowledged(
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        let db = state.db_authenticated()?;
+        let val = db
+            .get_setting("donation_acknowledged")
+            .map_err(|e| format!("Failed to read donation state: {}", e))?;
+        Ok(val.as_deref() == Some("true"))
+    }
+
+    /// Persist the donation-acknowledged flag in the database.
+    #[tauri::command]
+    pub async fn set_donation_acknowledged(
+        acknowledged: bool,
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        let db = state.db_authenticated()?;
+        db.set_setting("donation_acknowledged", if acknowledged { "true" } else { "false" })
+            .map_err(|e| format!("Failed to save donation state: {}", e))?;
+        Ok(acknowledged)
+    }
+
     pub fn run() {
         tauri::Builder::default()
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1531,6 +1619,11 @@ mod tauri_app {
                 delete_profile,
                 set_profile_password,
                 remove_profile_password,
+                verify_supporter_code,
+                get_supporter_status,
+                remove_supporter_badge,
+                get_donation_acknowledged,
+                set_donation_acknowledged,
             ])
             .run(tauri::generate_context!())
             .expect("Failed to run Open DroneLog");

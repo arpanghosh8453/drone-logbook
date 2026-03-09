@@ -2051,6 +2051,100 @@ async fn has_master_password(
 }
 
 // ============================================================================
+// SUPPORTER BADGE (server-side verification)
+// ============================================================================
+
+/// The SHA-256 hash of the valid supporter code.
+const SUPPORTER_HASH: &str =
+    "5978f3e898c83b40c90017c88b8048f80a5acfd020bbd073af794e710603067d";
+
+#[derive(Deserialize)]
+struct VerifySupporterPayload {
+    code: String,
+}
+
+/// POST /api/supporter/verify — Verify supporter code and persist state.
+async fn verify_supporter_code(
+    pdb: ProfileDb,
+    Json(payload): Json<VerifySupporterPayload>,
+) -> Result<Json<bool>, (StatusCode, Json<ErrorResponse>)> {
+    use sha2::{Sha256, Digest};
+
+    let trimmed = payload.code.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(err_response(StatusCode::BAD_REQUEST, "Code must not be empty"));
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(trimmed.as_bytes());
+    let hash_bytes = hasher.finalize();
+    let hash_hex: String = hash_bytes.iter().map(|b| format!("{:02x}", b)).collect();
+
+    if hash_hex != SUPPORTER_HASH {
+        return Ok(Json(false));
+    }
+
+    pdb.db
+        .set_setting("supporter_badge_active", "true")
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save supporter state: {}", e)))?;
+    pdb.db
+        .set_setting("donation_acknowledged", "true")
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save donation state: {}", e)))?;
+
+    Ok(Json(true))
+}
+
+/// GET /api/supporter/status — Read the supporter badge state.
+async fn get_supporter_status(
+    pdb: ProfileDb,
+) -> Json<bool> {
+    let active = pdb.db
+        .get_setting("supporter_badge_active")
+        .ok()
+        .flatten()
+        .as_deref() == Some("true");
+    Json(active)
+}
+
+/// POST /api/supporter/remove — Remove the supporter badge.
+async fn remove_supporter_badge(
+    pdb: ProfileDb,
+) -> Result<Json<bool>, (StatusCode, Json<ErrorResponse>)> {
+    pdb.db
+        .set_setting("supporter_badge_active", "false")
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to remove supporter state: {}", e)))?;
+    Ok(Json(true))
+}
+
+/// GET /api/supporter/donation — Read the donation-acknowledged flag.
+async fn get_donation_acknowledged(
+    pdb: ProfileDb,
+) -> Json<bool> {
+    let ack = pdb.db
+        .get_setting("donation_acknowledged")
+        .ok()
+        .flatten()
+        .as_deref() == Some("true");
+    Json(ack)
+}
+
+#[derive(Deserialize)]
+struct DonationAckPayload {
+    acknowledged: bool,
+}
+
+/// POST /api/supporter/donation — Set the donation-acknowledged flag.
+async fn set_donation_acknowledged(
+    pdb: ProfileDb,
+    Json(payload): Json<DonationAckPayload>,
+) -> Result<Json<bool>, (StatusCode, Json<ErrorResponse>)> {
+    pdb.db
+        .set_setting("donation_acknowledged", if payload.acknowledged { "true" } else { "false" })
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save donation state: {}", e)))?;
+    Ok(Json(payload.acknowledged))
+}
+
+// ============================================================================
 // SERVER SETUP
 // ============================================================================
 
@@ -2105,6 +2199,11 @@ pub fn build_router(state: WebAppState) -> Router {
         .route("/api/profiles/set_password", post(set_profile_password))
         .route("/api/profiles/remove_password", post(remove_profile_password))
         .route("/api/profiles/has_master_password", get(has_master_password))
+        .route("/api/supporter/verify", post(verify_supporter_code))
+        .route("/api/supporter/status", get(get_supporter_status))
+        .route("/api/supporter/remove", post(remove_supporter_badge))
+        .route("/api/supporter/donation", get(get_donation_acknowledged))
+        .route("/api/supporter/donation", post(set_donation_acknowledged))
         .layer(cors)
         .layer(DefaultBodyLimit::max(250 * 1024 * 1024)) // 250 MB
         .with_state(state)

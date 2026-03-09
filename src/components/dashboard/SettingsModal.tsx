@@ -4,7 +4,6 @@
 
 import { useState, useEffect, useRef, useTransition } from 'react';
 import { useTranslation } from 'react-i18next';
-import { sha256 as jsSha256 } from 'js-sha256';
 import * as api from '@/lib/api';
 import { isWebMode, getKeepUploadSettings, setKeepUploadSettings, KeepUploadSettings } from '@/lib/api';
 import { useFlightStore } from '@/stores/flightStore';
@@ -94,8 +93,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [badgeCode, setBadgeCode] = useState('');
   const [badgeMessage, setBadgeMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const SUPPORTER_HASH = '5978f3e898c83b40c90017c88b8048f80a5acfd020bbd073af794e710603067d';
-
   const handleActivateBadge = async () => {
     setBadgeMessage(null);
     const trimmed = badgeCode.trim();
@@ -104,18 +101,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return;
     }
     try {
-      let hashHex: string;
-      // Use Web Crypto API in secure contexts, fallback to js-sha256 for HTTP
-      if (typeof crypto !== 'undefined' && crypto.subtle) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(trimmed);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      } else {
-        hashHex = jsSha256(trimmed);
-      }
-      if (hashHex === SUPPORTER_HASH) {
+      const valid = await api.verifySupporterCode(trimmed);
+      if (valid) {
         setSupporterBadge(true);
         setBadgeMessage({ type: 'success', text: '🎉 Supporter badge activated! Thank you for your support!' });
         setBadgeCode('');
@@ -127,7 +114,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleRemoveBadge = () => {
+  const handleRemoveBadge = async () => {
+    try {
+      await api.removeSupporterBadge();
+    } catch (err) {
+      console.warn('Failed to remove supporter badge on backend:', err);
+    }
     setSupporterBadge(false);
     setBadgeMessage(null);
     setShowBadgeModal(false);

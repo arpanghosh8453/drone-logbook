@@ -120,6 +120,7 @@ interface FlightState {
   setThemeMode: (themeMode: 'system' | 'dark' | 'light') => void;
   setDonationAcknowledged: (value: boolean) => void;
   setSupporterBadge: (active: boolean) => void;
+  loadSupporterStatus: () => Promise<void>;
   checkForUpdates: () => Promise<void>;
   clearSelection: () => void;
   clearError: () => void;
@@ -242,14 +243,8 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       ? stored
       : 'system';
   })(),
-  donationAcknowledged:
-    typeof localStorage !== 'undefined'
-      ? localStorage.getItem('donationAcknowledged') === 'true'
-      : false,
-  supporterBadgeActive:
-    typeof localStorage !== 'undefined'
-      ? localStorage.getItem('supporterBadgeActive') === 'true'
-      : false,
+  donationAcknowledged: false,
+  supporterBadgeActive: false,
   _flightDataCache: new Map(),
   allTags: [],
   smartTagsEnabled: true,
@@ -850,20 +845,32 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   },
 
   setDonationAcknowledged: (value) => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('donationAcknowledged', String(value));
-    }
     set({ donationAcknowledged: value });
+    // Persist to backend (fire-and-forget)
+    api.setDonationAcknowledgedApi(value).catch((err) =>
+      console.warn('Failed to persist donation acknowledged state:', err),
+    );
   },
 
   setSupporterBadge: (active) => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('supporterBadgeActive', String(active));
-    }
     set({ supporterBadgeActive: active });
-    // Activating badge also acknowledges donation
     if (active) {
+      // Activating badge also acknowledges donation
       get().setDonationAcknowledged(true);
+    }
+    // Note: activation is done via verifySupporterCode; removal via removeSupporterBadge.
+    // This setter is kept for local state updates after the API call succeeds.
+  },
+
+  loadSupporterStatus: async () => {
+    try {
+      const [badgeActive, donationAck] = await Promise.all([
+        api.getSupporterStatus(),
+        api.getDonationAcknowledged(),
+      ]);
+      set({ supporterBadgeActive: badgeActive, donationAcknowledged: donationAck });
+    } catch (err) {
+      console.warn('Failed to load supporter status from backend:', err);
     }
   },
 
@@ -1081,8 +1088,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     const perProfileKeys = [
       'unitSystem', 'themeMode', 'appLanguage', 'locale', 'dateLocale',
       'timeFormat', 'hideSerialNumbers', 'batteryNameMap', 'droneNameMap',
-      'maintenanceThresholds', 'maintenanceLastReset', 'supporterBadgeActive',
-      'supporterBadgeVerified', 'supporterActivationCode', 'donationAcknowledged',
+      'maintenanceThresholds', 'maintenanceLastReset',
       'lastSelectedFlightId', 'sidebarWidth', 'chartFieldSelections',
       'syncFolderPath', 'htmlReportPilotName', 'htmlReportDocTitle',
       'enabledSmartTagTypes',

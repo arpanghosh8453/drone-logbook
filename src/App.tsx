@@ -271,7 +271,7 @@ class AppErrorBoundary extends React.Component<
 
 function App() {
   const { t } = useTranslation();
-  const { loadFlights, error, clearError, donationAcknowledged, themeMode, isFlightsInitialized, needsAuth } = useFlightStore();
+  const { loadFlights, error, clearError, donationAcknowledged, themeMode, isFlightsInitialized, needsAuth, loadSupporterStatus } = useFlightStore();
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     if (typeof sessionStorage === 'undefined') return false;
     return sessionStorage.getItem('donationBannerDismissed') === 'true';
@@ -281,6 +281,11 @@ function App() {
   useEffect(() => {
     loadFlights();
   }, [loadFlights]);
+
+  // Load supporter/donation status from backend on mount
+  useEffect(() => {
+    loadSupporterStatus();
+  }, [loadSupporterStatus]);
 
   // Ctrl+Q to close window (Tauri desktop only)
   useEffect(() => {
