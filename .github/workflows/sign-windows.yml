@@ -38,35 +38,43 @@ jobs:
           echo "Resolved tag: $TAG (version: $VERSION)"
 
       - name: Download unsigned Windows binaries from release
+        id: download
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           mkdir -p unsigned/exe unsigned/msi
+
+          # Download all .exe files (NSIS installer + plain binary)
           gh release download "$TAG" \
             --repo "${{ github.repository }}" \
             --dir unsigned/exe \
             --pattern '*.exe'
+
           gh release download "$TAG" \
             --repo "${{ github.repository }}" \
             --dir unsigned/msi \
             --pattern '*.msi'
 
-          EXE=$(find unsigned/exe -name '*.exe' -type f | head -1)
-          MSI=$(find unsigned/msi -name '*.msi' -type f | head -1)
-          if [ -z "$EXE" ] || [ -z "$MSI" ]; then
+          echo "Downloaded EXE files:"
+          ls -la unsigned/exe/
+          echo "Downloaded MSI files:"
+          ls -la unsigned/msi/
+
+          EXE_COUNT=$(find unsigned/exe -name '*.exe' -type f | wc -l)
+          MSI_COUNT=$(find unsigned/msi -name '*.msi' -type f | wc -l)
+          if [ "$EXE_COUNT" -eq 0 ] || [ "$MSI_COUNT" -eq 0 ]; then
             echo "::error::Could not find .exe or .msi in release $TAG"
             exit 1
           fi
-          echo "Downloaded EXE: $EXE"
-          echo "Downloaded MSI: $MSI"
+          echo "Found $EXE_COUNT .exe file(s) and $MSI_COUNT .msi file(s)"
 
-      - name: Upload .exe as workflow artifact
+      - name: Upload .exe files as workflow artifact
         id: upload-exe
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-exe
-          path: unsigned/exe/*.exe
+          path: unsigned/exe/
           if-no-files-found: error
           retention-days: 1
 
@@ -75,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-msi
-          path: unsigned/msi/*.msi
+          path: unsigned/msi/
           if-no-files-found: error
           retention-days: 1
 
@@ -106,23 +114,20 @@ jobs:
           output-artifact-directory: 'signed/msi'
 
       - name: Prepare release assets
-        env:
-          VERSION: ${{ steps.tag.outputs.version }}
         run: |
           mkdir -p release-assets
 
-          EXE=$(find signed/exe -name '*.exe' -type f | head -1)
-          MSI=$(find signed/msi -name '*.msi' -type f | head -1)
+          # Copy all signed .exe and .msi files preserving original names
+          find signed/exe -name '*.exe' -type f -exec cp {} release-assets/ \;
+          find signed/msi -name '*.msi' -type f -exec cp {} release-assets/ \;
 
-          if [ -z "$EXE" ] || [ -z "$MSI" ]; then
-            echo "::error::Signed artifacts not found"
+          COUNT=$(ls release-assets/ | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No signed artifacts found"
             exit 1
           fi
 
-          cp "$EXE" "release-assets/open-dronelog_${VERSION}_windows_x86_64.exe"
-          cp "$MSI" "release-assets/open-dronelog_${VERSION}_windows_x86_64.msi"
-
-          echo "Prepared signed release assets:"
+          echo "Prepared $COUNT signed release assets:"
           ls -la release-assets/
 
       - name: Upload signed binaries to release
