@@ -17,11 +17,15 @@ Open-DroneLog will execute your scripts automatically during the import process 
 
 ## 2. Configuration (`parsers.json`)
 
-Create a `parsers.json` file in your application's configuration directory.
-- **Linux**: `~/.config/open-dronelog/parsers.json`
-- **Windows**: `C:\Users\<User>\AppData\Roaming\open-dronelog\parsers.json`
-- **macOS**: `~/Library/Application Support/open-dronelog/parsers.json`
-- **Docker**: Mount this file as a volume (e.g., `-v ./parsers.json:/app/data/parsers.json`)
+Create a `parsers.json` file in your application's data directory.
+
+**For the Desktop App:**
+- **Linux**: `~/.local/share/com.drone-logbook/parsers.json`
+- **Windows**: `C:\Users\<User>\AppData\Local\com.drone-logbook\parsers.json`
+- **macOS**: `~/Library/Application Support/com.drone-logbook/parsers.json`
+
+**For the Web/Docker App:**
+- **Linux/Docker**: map as a volume, e.g., `./data/parsers.json:/app/data/parsers.json`
 
 ### Example `parsers.json`
 
@@ -41,7 +45,7 @@ Create a `parsers.json` file in your application's configuration directory.
 ```
 
 * `$INPUT`: Will be replaced by Open-DroneLog with the absolute path of the uploaded file.
-* `$OUTPUT`: Will be replaced by Open-DroneLog with the absolute path where your script must save the CSV.
+* `$OUTPUT`: Will be replaced by Open-DroneLog with the absolute path where your script must save the CSV for the import.
 
 ---
 
