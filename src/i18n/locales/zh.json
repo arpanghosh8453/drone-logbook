@@ -745,5 +745,11 @@
     "copied": "已复制！",
     "downloadPng": "下载PNG",
     "saving": "保存中..."
+  },
+  "common": {
+    "go": "跳转",
+    "dateJumpPlaceholder": "YYYY-MM-DD",
+    "useDateFormat": "请使用 YYYY-MM-DD 格式",
+    "dateInFuture": "日期不能是未来时间"
   }
 }

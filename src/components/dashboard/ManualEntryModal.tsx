@@ -5,11 +5,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { createManualFlight } from '@/lib/api';
 import { useFlightStore } from '@/stores/flightStore';
 import { formatDateDisplay as fmtDateDisplay } from '@/lib/utils';
+import { DatePickerPopover } from '@/components/ui/DatePickerPopover';
 
 function resolveThemeMode(mode: 'system' | 'dark' | 'light'): 'dark' | 'light' {
   if (mode === 'system') {
@@ -384,33 +384,26 @@ export function ManualEntryModal({ isOpen, onClose }: ManualEntryModalProps) {
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
               </button>
-              {isDatePickerOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setIsDatePickerOpen(false)}
-                  />
-                  <div
-                    className={`absolute left-0 top-full mt-1 z-50 rounded-xl border p-3 shadow-xl ${isLight
-                        ? 'bg-white border-gray-200'
-                        : 'bg-drone-surface border-gray-700'
-                      }`}
-                  >
-                    <DayPicker
-                      mode="single"
-                      selected={formData.date}
-                      onSelect={(date) => {
-                        handleFieldChange('date', date);
-                        setIsDatePickerOpen(false);
-                      }}
-                      disabled={{ after: new Date() }}
-                      defaultMonth={formData.date}
-                      weekStartsOn={1}
-                      className={`rdp-theme ${isLight ? 'rdp-light' : 'rdp-dark'}`}
-                    />
-                  </div>
-                </>
-              )}
+              <DatePickerPopover
+                isOpen={isDatePickerOpen}
+                onClose={() => setIsDatePickerOpen(false)}
+                isLight={isLight}
+                mode="single"
+                selected={formData.date}
+                onSelect={(date) => {
+                  handleFieldChange('date', date);
+                  setIsDatePickerOpen(false);
+                }}
+                disabled={{ after: new Date() }}
+                defaultMonth={formData.date}
+                jumpMaxDate={new Date()}
+                onJumpDate={(date) => {
+                  handleFieldChange('date', date);
+                  setIsDatePickerOpen(false);
+                }}
+                position="absolute"
+                popoverClassName="left-0 top-full mt-1"
+              />
               {errors.date && <p className="mt-1 text-xs text-red-400">{errors.date}</p>}
             </div>
 

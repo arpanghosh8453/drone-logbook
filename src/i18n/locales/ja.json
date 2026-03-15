@@ -745,5 +745,11 @@
     "copied": "コピーしました！",
     "downloadPng": "PNGをダウンロード",
     "saving": "保存中..."
+  },
+  "common": {
+    "go": "移動",
+    "dateJumpPlaceholder": "YYYY-MM-DD",
+    "useDateFormat": "YYYY-MM-DD形式で入力してください",
+    "dateInFuture": "日付は未来にできません"
   }
 }

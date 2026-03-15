@@ -741,5 +741,11 @@
     "copied": "Skopiowano!",
     "downloadPng": "Pobierz PNG",
     "saving": "Zapisywanie..."
+  },
+  "common": {
+    "go": "Przejdz",
+    "dateJumpPlaceholder": "YYYY-MM-DD",
+    "useDateFormat": "Uzyj formatu RRRR-MM-DD",
+    "dateInFuture": "Data nie moze byc z przyszlosci"
   }
 }

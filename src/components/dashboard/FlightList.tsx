@@ -16,13 +16,14 @@ import { isWebMode, downloadFile, downloadBlob } from '@/lib/api';
 import { buildCsv, buildJson, buildGpx, buildKml } from '@/lib/exportUtils';
 import { useFlightStore } from '@/stores/flightStore';
 import { formatDuration, formatDateTime, formatDistance, formatAltitude, normalizeSerial, formatDateDisplay } from '@/lib/utils';
-import { DayPicker, type DateRange } from 'react-day-picker';
+import { type DateRange } from 'react-day-picker';
 import type { FlightDataResponse, Flight, TelemetryData } from '@/types';
 import { useTranslation } from 'react-i18next';
 import { addToBlacklist } from './FlightImporter';
 import { FlyCardGenerator } from './FlyCardGenerator';
 import { HtmlReportModal } from './HtmlReportModal';
 import ColorPickerModal from './ColorPickerModal';
+import { DatePickerPopover } from '@/components/ui/DatePickerPopover';
 import { buildHtmlReport, type HtmlReportFieldConfig, type FlightReportData } from '@/lib/htmlReportBuilder';
 import { fetchFlightWeather } from '@/lib/weather';
 import 'react-day-picker/dist/style.css';
@@ -1960,53 +1961,48 @@ export function FlightList({
                         </span>
                         <CalendarIcon />
                       </button>
-                      {isDateOpen && dateAnchor && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            onClick={() => setIsDateOpen(false)}
-                          />
-                          <div
-                            className="fixed z-50 rounded-xl border border-gray-700 bg-drone-surface p-3 shadow-xl"
-                            style={{
-                              top: dateAnchor.top,
-                              left: dateAnchor.left,
-                              width: Math.max(320, dateAnchor.width),
-                            }}
-                          >
-                            <DayPicker
-                              mode="range"
-                              selected={dateRange}
-                              onSelect={(range) => {
-                                setDateRange(range);
-                                if (range?.from && range?.to) {
-                                  setIsDateOpen(false);
-                                }
-                              }}
-                              disabled={{ after: today }}
-                              weekStartsOn={1}
-                              numberOfMonths={1}
-                              className="rdp-theme"
-                            />
-                            <div className="mt-2 flex items-center justify-between">
-                              <button
-                                type="button"
-                                onClick={() => setDateRange(undefined)}
-                                className="text-xs text-gray-400 hover:text-white"
-                              >
-                                {t('flightList.clearRange')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setIsDateOpen(false)}
-                                className="text-xs text-gray-200 hover:text-white"
-                              >
-                                {t('flightList.done')}
-                              </button>
-                            </div>
+                      <DatePickerPopover
+                        isOpen={isDateOpen && !!dateAnchor}
+                        onClose={() => setIsDateOpen(false)}
+                        mode="range"
+                        selected={dateRange}
+                        onSelect={(range) => {
+                          setDateRange(range);
+                          if (range?.from && range?.to) {
+                            setIsDateOpen(false);
+                          }
+                        }}
+                        disabled={{ after: today }}
+                        jumpMaxDate={today}
+                        onJumpRange={(range) => {
+                          setDateRange(range);
+                          setIsDateOpen(false);
+                        }}
+                        dayPickerClassName="rdp-theme"
+                        style={dateAnchor ? {
+                          top: dateAnchor.top,
+                          left: dateAnchor.left,
+                          width: Math.max(320, dateAnchor.width),
+                        } : undefined}
+                        footer={(
+                          <div className="mt-2 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => setDateRange(undefined)}
+                              className="text-xs text-gray-400 hover:text-white"
+                            >
+                              {t('flightList.clearRange')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsDateOpen(false)}
+                              className="text-xs text-gray-200 hover:text-white"
+                            >
+                              {t('flightList.done')}
+                            </button>
                           </div>
-                        </>
-                      )}
+                        )}
+                      />
                     </div>
 
                     <div className="flex items-center gap-2">

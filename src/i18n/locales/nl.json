@@ -745,5 +745,11 @@
     "copied": "Gekopieerd!",
     "downloadPng": "PNG downloaden",
     "saving": "Opslaan..."
+  },
+  "common": {
+    "go": "Ga",
+    "dateJumpPlaceholder": "YYYY-MM-DD",
+    "useDateFormat": "Gebruik de notatie JJJJ-MM-DD",
+    "dateInFuture": "Datum kan niet in de toekomst liggen"
   }
 }

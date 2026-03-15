@@ -745,5 +745,11 @@
     "copied": "복사됨!",
     "downloadPng": "PNG 다운로드",
     "saving": "저장 중..."
+  },
+  "common": {
+    "go": "이동",
+    "dateJumpPlaceholder": "YYYY-MM-DD",
+    "useDateFormat": "YYYY-MM-DD 형식을 사용하세요",
+    "dateInFuture": "날짜는 미래일 수 없습니다"
   }
 }
