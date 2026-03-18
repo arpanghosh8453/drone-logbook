@@ -119,6 +119,15 @@
     "clearSearch": "Borrar búsqueda",
     "logsSelected": "{{n}} de {{total}} registros seleccionados",
     "clearFilters": "Borrar filtros",
+    "savedFilterLabel": "Guardado",
+    "filterProfiles": {
+      "saveSelectionButton": "Guardar filtro",
+      "createDescription": "Se creará un perfil a partir de la selección de filtros actual.",
+      "noneSaved": "No hay perfiles guardados",
+      "deletePrompt": "¿Eliminar \"{{name}}\"?",
+      "deleteAria": "Eliminar {{name}}",
+      "errorReservedNone": "El nombre \"None\" está reservado"
+    },
     "exportFiltered": "Exportar filtrados",
     "csv": "CSV",
     "json": "JSON",

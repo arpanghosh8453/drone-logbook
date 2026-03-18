@@ -119,6 +119,15 @@
     "clearSearch": "清除搜索",
     "logsSelected": "已选择 {{n}} / {{total}} 条日志",
     "clearFilters": "清除筛选器",
+    "savedFilterLabel": "已保存",
+    "filterProfiles": {
+      "saveSelectionButton": "保存筛选器",
+      "createDescription": "将根据当前筛选条件创建一个配置。",
+      "noneSaved": "没有已保存的配置",
+      "deletePrompt": "删除“{{name}}”？",
+      "deleteAria": "删除 {{name}}",
+      "errorReservedNone": "名称 \"None\" 为保留字"
+    },
     "exportFiltered": "导出已筛选",
     "csv": "CSV",
     "json": "JSON",

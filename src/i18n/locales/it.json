@@ -128,6 +128,15 @@
     "htmlReport": "Report HTML",
     "deleteFiltered": "Elimina filtrati",
     "deleteFilteredConfirm": "Eliminare {{n}} volo/i filtrato/i?",
+      "savedFilterLabel": "Salvato",
+      "filterProfiles": {
+        "saveSelectionButton": "Salva filtro",
+        "createDescription": "Verrà creato un profilo dalla selezione filtri corrente.",
+        "noneSaved": "Nessun profilo salvato",
+        "deletePrompt": "Eliminare \"{{name}}\"?",
+        "deleteAria": "Elimina {{name}}",
+        "errorReservedNone": "Il nome \"None\" è riservato"
+      },
     "yes": "Sì",
     "cancel": "Annulla",
     "untagFiltered": "Rimuovi tag dai filtrati",

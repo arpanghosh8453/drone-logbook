@@ -1077,6 +1077,63 @@ async fn set_enabled_tag_types(
     Ok(Json(payload.types))
 }
 
+#[derive(Deserialize)]
+struct SettingQuery {
+    key: String,
+}
+
+#[derive(Serialize)]
+struct SettingValuePayload {
+    value: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SetSettingPayload {
+    key: String,
+    value: String,
+}
+
+/// GET /api/settings/value?key=... — Get a value from profile-scoped DB settings table
+async fn get_setting_value(
+    pdb: ProfileDb,
+    Query(query): Query<SettingQuery>,
+) -> Result<Json<SettingValuePayload>, (StatusCode, Json<ErrorResponse>)> {
+    let key = query.key.trim();
+    if key.is_empty() {
+        return Err(err_response(
+            StatusCode::BAD_REQUEST,
+            "Setting key is required".to_string(),
+        ));
+    }
+
+    let value = pdb
+        .db
+        .get_setting(key)
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read setting: {}", e)))?;
+
+    Ok(Json(SettingValuePayload { value }))
+}
+
+/// POST /api/settings/value — Set a value in profile-scoped DB settings table
+async fn set_setting_value(
+    pdb: ProfileDb,
+    Json(payload): Json<SetSettingPayload>,
+) -> Result<Json<bool>, (StatusCode, Json<ErrorResponse>)> {
+    let key = payload.key.trim();
+    if key.is_empty() {
+        return Err(err_response(
+            StatusCode::BAD_REQUEST,
+            "Setting key is required".to_string(),
+        ));
+    }
+
+    pdb.db
+        .set_setting(key, &payload.value)
+        .map_err(|e| err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save setting: {}", e)))?;
+
+    Ok(Json(true))
+}
+
 /// Request body for regenerating smart tags with optional filter
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2307,6 +2364,8 @@ pub fn build_router(state: WebAppState) -> Router {
         .route("/api/settings/smart_tags", post(set_smart_tags_enabled))
         .route("/api/settings/enabled_tag_types", get(get_enabled_tag_types))
         .route("/api/settings/enabled_tag_types", post(set_enabled_tag_types))
+        .route("/api/settings/value", get(get_setting_value))
+        .route("/api/settings/value", post(set_setting_value))
         .route("/api/regenerate_smart_tags", post(regenerate_smart_tags))
         .route("/api/regenerate_flight_smart_tags/:id", post(regenerate_flight_smart_tags))
         .route("/api/has_api_key", get(has_api_key))

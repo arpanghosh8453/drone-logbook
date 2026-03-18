@@ -119,6 +119,15 @@
     "clearSearch": "検索をクリア",
     "logsSelected": "{{total}} 件中 {{n}} 件のログを選択",
     "clearFilters": "フィルターをクリア",
+    "savedFilterLabel": "保存済み",
+    "filterProfiles": {
+      "saveSelectionButton": "フィルターを保存",
+      "createDescription": "現在のフィルター選択からプロファイルが作成されます。",
+      "noneSaved": "保存されたプロファイルはありません",
+      "deletePrompt": "\"{{name}}\" を削除しますか？",
+      "deleteAria": "{{name}} を削除",
+      "errorReservedNone": "\"None\" という名前は予約されています"
+    },
     "exportFiltered": "フィルター済みをエクスポート",
     "csv": "CSV",
     "json": "JSON",

@@ -119,6 +119,15 @@
     "clearSearch": "Effacer la recherche",
     "logsSelected": "{{n}} sur {{total}} journaux sélectionnés",
     "clearFilters": "Effacer les filtres",
+    "savedFilterLabel": "Enregistre",
+    "filterProfiles": {
+      "saveSelectionButton": "Enregistrer le filtre",
+      "createDescription": "Un profil sera créé à partir de la sélection de filtres actuelle.",
+      "noneSaved": "Aucun profil enregistré",
+      "deletePrompt": "Supprimer \"{{name}}\" ?",
+      "deleteAria": "Supprimer {{name}}",
+      "errorReservedNone": "Le nom \"None\" est réservé"
+    },
     "exportFiltered": "Exporter les filtrés",
     "csv": "CSV",
     "json": "JSON",

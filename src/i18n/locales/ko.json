@@ -119,6 +119,15 @@
     "clearSearch": "검색 지우기",
     "logsSelected": "{{total}}개 중 {{n}}개 로그 선택됨",
     "clearFilters": "필터 지우기",
+    "savedFilterLabel": "저장됨",
+    "filterProfiles": {
+      "saveSelectionButton": "필터 저장",
+      "createDescription": "현재 필터 선택으로 프로필이 생성됩니다.",
+      "noneSaved": "저장된 프로필이 없습니다",
+      "deletePrompt": "\"{{name}}\"을(를) 삭제하시겠습니까?",
+      "deleteAria": "{{name}} 삭제",
+      "errorReservedNone": "\"None\" 이름은 예약되어 있습니다"
+    },
     "exportFiltered": "필터된 항목 내보내기",
     "csv": "CSV",
     "json": "JSON",

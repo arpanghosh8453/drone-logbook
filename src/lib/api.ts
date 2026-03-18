@@ -509,6 +509,33 @@ export async function setSmartTagsEnabled(enabled: boolean): Promise<boolean> {
   return invoke('set_smart_tags_enabled', { enabled }) as Promise<boolean>;
 }
 
+interface SettingValueResponse {
+  value: string | null;
+}
+
+/** Read a profile-scoped setting from the backend database settings table. */
+export async function getSettingValue(key: string): Promise<string | null> {
+  if (isWeb) {
+    const params = new URLSearchParams({ key });
+    const result = await fetchJson<SettingValueResponse>(`/settings/value?${params.toString()}`);
+    return result.value;
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('get_setting_value', { key }) as Promise<string | null>;
+}
+
+/** Persist a profile-scoped setting in the backend database settings table. */
+export async function setSettingValue(key: string, value: string): Promise<boolean> {
+  if (isWeb) {
+    return fetchJson<boolean>('/settings/value', {
+      method: 'POST',
+      body: JSON.stringify({ key, value }),
+    });
+  }
+  const invoke = await getTauriInvoke();
+  return invoke('set_setting_value', { key, value }) as Promise<boolean>;
+}
+
 export async function regenerateSmartTags(): Promise<string> {
   if (isWeb) {
     return fetchJson<string>('/regenerate_smart_tags', {

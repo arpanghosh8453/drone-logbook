@@ -2626,6 +2626,7 @@ impl Database {
         let messages_path = temp_dir.join("flight_messages.parquet");
         let equipment_names_path = temp_dir.join("equipment_names.parquet");
         let customizations_path = temp_dir.join("flight_customizations.parquet");
+        let settings_path = temp_dir.join("settings.parquet");
 
         conn.execute_batch(&format!(
             "COPY flights    TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
@@ -2659,6 +2660,11 @@ impl Database {
             "COPY flight_customizations TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
             customizations_path.to_string_lossy()
         ));
+        // Export settings table (ignore error if empty or doesn't exist)
+        let _ = conn.execute_batch(&format!(
+            "COPY settings TO '{}' (FORMAT PARQUET, COMPRESSION ZSTD);",
+            settings_path.to_string_lossy()
+        ));
 
         drop(conn); // release the lock while we tar
 
@@ -2667,7 +2673,7 @@ impl Database {
         let gz = flate2::write::GzEncoder::new(dest_file, flate2::Compression::fast());
         let mut tar = tar::Builder::new(gz);
 
-        for name in &["flights.parquet", "telemetry.parquet", "keychains.parquet", "flight_tags.parquet", "flight_messages.parquet", "equipment_names.parquet", "flight_customizations.parquet"] {
+        for name in &["flights.parquet", "telemetry.parquet", "keychains.parquet", "flight_tags.parquet", "flight_messages.parquet", "equipment_names.parquet", "flight_customizations.parquet", "settings.parquet"] {
             let file_path = temp_dir.join(name);
             if file_path.exists() {
                 tar.append_path_with_name(&file_path, name)
@@ -2829,6 +2835,18 @@ impl Database {
                 SELECT * FROM read_parquet('{}');
                 "#,
                 customizations_path.to_string_lossy()
+            ));
+        }
+
+        // --- Restore settings (backward compatible — may not exist in old backups) ---
+        let settings_path = temp_dir.join("settings.parquet");
+        if settings_path.exists() {
+            let _ = conn.execute_batch(&format!(
+                r#"
+                INSERT OR REPLACE INTO settings
+                SELECT * FROM read_parquet('{}');
+                "#,
+                settings_path.to_string_lossy()
             ));
         }
 

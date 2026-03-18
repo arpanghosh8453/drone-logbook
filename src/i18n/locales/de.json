@@ -119,6 +119,15 @@
     "clearSearch": "Suche löschen",
     "logsSelected": "{{n}} von {{total}} Protokollen ausgewählt",
     "clearFilters": "Filter löschen",
+    "savedFilterLabel": "Gespeichert",
+    "filterProfiles": {
+      "saveSelectionButton": "Filter speichern",
+      "createDescription": "Ein Profil wird aus der aktuellen Filterauswahl erstellt.",
+      "noneSaved": "Keine gespeicherten Profile",
+      "deletePrompt": "\"{{name}}\" löschen?",
+      "deleteAria": "{{name}} löschen",
+      "errorReservedNone": "Der Name \"None\" ist reserviert"
+    },
     "exportFiltered": "Gefilterte exportieren",
     "csv": "CSV",
     "json": "JSON",

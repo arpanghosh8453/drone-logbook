@@ -112,6 +112,77 @@ function smoothScrollToElement(
   });
 }
 
+const FILTER_PROFILES_SETTING_KEY = 'flight_list_filter_profiles_v1';
+
+interface SavedFilterSnapshot {
+  selectedDrones: string[];
+  selectedBatteries: string[];
+  selectedControllers: string[];
+  selectedTags: string[];
+  selectedColors: string[];
+  durationFilterMin: number | null;
+  durationFilterMax: number | null;
+  altitudeFilterMin: number | null;
+  altitudeFilterMax: number | null;
+  distanceFilterMin: number | null;
+  distanceFilterMax: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+interface SavedFilterProfile {
+  name: string;
+  filters: SavedFilterSnapshot;
+  updatedAt: string;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+function asNumberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function normalizeSavedFilterSnapshot(value: unknown): SavedFilterSnapshot | null {
+  if (!value || typeof value !== 'object') return null;
+  const obj = value as Record<string, unknown>;
+  return {
+    selectedDrones: asStringArray(obj.selectedDrones),
+    selectedBatteries: asStringArray(obj.selectedBatteries),
+    selectedControllers: asStringArray(obj.selectedControllers),
+    selectedTags: asStringArray(obj.selectedTags),
+    selectedColors: asStringArray(obj.selectedColors),
+    durationFilterMin: asNumberOrNull(obj.durationFilterMin),
+    durationFilterMax: asNumberOrNull(obj.durationFilterMax),
+    altitudeFilterMin: asNumberOrNull(obj.altitudeFilterMin),
+    altitudeFilterMax: asNumberOrNull(obj.altitudeFilterMax),
+    distanceFilterMin: asNumberOrNull(obj.distanceFilterMin),
+    distanceFilterMax: asNumberOrNull(obj.distanceFilterMax),
+    dateFrom: typeof obj.dateFrom === 'string' ? obj.dateFrom : null,
+    dateTo: typeof obj.dateTo === 'string' ? obj.dateTo : null,
+  };
+}
+
+function normalizeSavedFilterProfiles(value: unknown): SavedFilterProfile[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: SavedFilterProfile[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const obj = item as Record<string, unknown>;
+    const name = typeof obj.name === 'string' ? obj.name.trim() : '';
+    const filters = normalizeSavedFilterSnapshot(obj.filters);
+    if (!name || !filters) continue;
+    normalized.push({
+      name,
+      filters,
+      updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : new Date(0).toISOString(),
+    });
+  }
+  return normalized;
+}
+
 export function FlightList({
   onSelectFlight,
   onHighlightFlight,
@@ -145,6 +216,7 @@ export function FlightList({
     mapVisibleBounds,
     setMapAreaFilterEnabled,
     clearSelection,
+    hideSerialNumbers,
     getDisplaySerial,
     overviewHighlightedFlightId,
     setOverviewHighlightedFlightId,
@@ -152,6 +224,7 @@ export function FlightList({
     removeTag,
     loadAllTags,
     clearFlightDataCache,
+    activeProfile,
   } =
     useFlightStore();
 
@@ -198,6 +271,13 @@ export function FlightList({
   const [altitudeFilterMax, setAltitudeFilterMax] = useState<number | null>(null);
   const [distanceFilterMin, setDistanceFilterMin] = useState<number | null>(null);
   const [distanceFilterMax, setDistanceFilterMax] = useState<number | null>(null);
+  const [savedFilterProfiles, setSavedFilterProfiles] = useState<SavedFilterProfile[]>([]);
+  const [selectedFilterProfileName, setSelectedFilterProfileName] = useState('none');
+  const [isFilterProfileDropdownOpen, setIsFilterProfileDropdownOpen] = useState(false);
+  const [pendingDeleteFilterProfile, setPendingDeleteFilterProfile] = useState<string | null>(null);
+  const [showCreateFilterProfileInline, setShowCreateFilterProfileInline] = useState(false);
+  const [newFilterProfileName, setNewFilterProfileName] = useState('');
+  const [newFilterProfileError, setNewFilterProfileError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<
     'name' | 'date' | 'duration' | 'distance' | 'altitude' | 'speed' | 'color'
@@ -272,6 +352,9 @@ export function FlightList({
   const batteryBtnRef = useRef<HTMLButtonElement | null>(null);
   const controllerBtnRef = useRef<HTMLButtonElement | null>(null);
   const tagBtnRef = useRef<HTMLButtonElement | null>(null);
+  const filterProfileBtnRef = useRef<HTMLButtonElement | null>(null);
+  const filterProfileDropdownRef = useRef<HTMLDivElement | null>(null);
+  const isApplyingFilterProfileRef = useRef(false);
 
   const dateFormatter = useMemo(
     () => ({
@@ -284,6 +367,214 @@ export function FlightList({
     date.setHours(0, 0, 0, 0);
     return date;
   }, []);
+
+  const hasScrollboxFilter = !!(
+    durationFilterMin !== null ||
+    durationFilterMax !== null ||
+    altitudeFilterMin !== null ||
+    altitudeFilterMax !== null ||
+    distanceFilterMin !== null ||
+    distanceFilterMax !== null ||
+    dateRange?.from ||
+    dateRange?.to ||
+    selectedDrones.length > 0 ||
+    selectedBatteries.length > 0 ||
+    selectedControllers.length > 0 ||
+    selectedTags.length > 0 ||
+    selectedColors.length > 0
+  );
+
+  const applySavedFilterSnapshot = useCallback((snapshot: SavedFilterSnapshot) => {
+    isApplyingFilterProfileRef.current = true;
+    setSelectedDrones(snapshot.selectedDrones);
+    setSelectedBatteries(snapshot.selectedBatteries);
+    setSelectedControllers(snapshot.selectedControllers);
+    setSelectedTags(snapshot.selectedTags);
+    setSelectedColors(snapshot.selectedColors);
+    setDurationFilterMin(snapshot.durationFilterMin);
+    setDurationFilterMax(snapshot.durationFilterMax);
+    setAltitudeFilterMin(snapshot.altitudeFilterMin);
+    setAltitudeFilterMax(snapshot.altitudeFilterMax);
+    setDistanceFilterMin(snapshot.distanceFilterMin);
+    setDistanceFilterMax(snapshot.distanceFilterMax);
+
+    const from = snapshot.dateFrom ? new Date(snapshot.dateFrom) : undefined;
+    const to = snapshot.dateTo ? new Date(snapshot.dateTo) : undefined;
+    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+      setDateRange(undefined);
+    } else if (from || to) {
+      setDateRange({ from, to });
+    } else {
+      setDateRange(undefined);
+    }
+  }, []);
+
+  const currentFilterSnapshot = useMemo<SavedFilterSnapshot>(() => ({
+    selectedDrones,
+    selectedBatteries,
+    selectedControllers,
+    selectedTags,
+    selectedColors,
+    durationFilterMin,
+    durationFilterMax,
+    altitudeFilterMin,
+    altitudeFilterMax,
+    distanceFilterMin,
+    distanceFilterMax,
+    dateFrom: dateRange?.from ? dateRange.from.toISOString() : null,
+    dateTo: dateRange?.to ? dateRange.to.toISOString() : null,
+  }), [
+    selectedDrones,
+    selectedBatteries,
+    selectedControllers,
+    selectedTags,
+    selectedColors,
+    durationFilterMin,
+    durationFilterMax,
+    altitudeFilterMin,
+    altitudeFilterMax,
+    distanceFilterMin,
+    distanceFilterMax,
+    dateRange,
+  ]);
+
+  const persistSavedFilterProfiles = useCallback(async (profiles: SavedFilterProfile[]) => {
+    setSavedFilterProfiles(profiles);
+    try {
+      await api.setSettingValue(FILTER_PROFILES_SETTING_KEY, JSON.stringify(profiles));
+    } catch (error) {
+      console.error('Failed to save filter profiles:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSavedFilterProfiles = async () => {
+      try {
+        const raw = await api.getSettingValue(FILTER_PROFILES_SETTING_KEY);
+        if (cancelled) return;
+        if (!raw) {
+          setSavedFilterProfiles([]);
+          setSelectedFilterProfileName('none');
+          return;
+        }
+        const parsed = JSON.parse(raw) as unknown;
+        const normalized = normalizeSavedFilterProfiles(parsed);
+        setSavedFilterProfiles(normalized);
+        setSelectedFilterProfileName('none');
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load filter profiles:', error);
+          setSavedFilterProfiles([]);
+          setSelectedFilterProfileName('none');
+        }
+      }
+    };
+
+    setPendingDeleteFilterProfile(null);
+    setShowCreateFilterProfileInline(false);
+    setNewFilterProfileName('');
+    setNewFilterProfileError(null);
+    setIsFilterProfileDropdownOpen(false);
+    loadSavedFilterProfiles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile]);
+
+  const handleSelectFilterProfile = useCallback((profileName: string) => {
+    if (profileName === 'none') {
+      setSelectedFilterProfileName('none');
+      setIsFilterProfileDropdownOpen(false);
+      return;
+    }
+
+    const profile = savedFilterProfiles.find((item) => item.name === profileName);
+    if (!profile) return;
+
+    applySavedFilterSnapshot(profile.filters);
+    setSelectedFilterProfileName(profile.name);
+    setIsFilterProfileDropdownOpen(false);
+    setShowCreateFilterProfileInline(false);
+    setNewFilterProfileError(null);
+  }, [savedFilterProfiles, applySavedFilterSnapshot]);
+
+  const handleCreateOrOverwriteFilterProfile = useCallback(async () => {
+    const trimmedName = newFilterProfileName.trim();
+    if (!trimmedName) {
+      setNewFilterProfileError(t('profile.errorEmpty'));
+      return;
+    }
+    if (trimmedName.toLowerCase() === 'none') {
+      setNewFilterProfileError(t('flightList.filterProfiles.errorReservedNone'));
+      return;
+    }
+
+    const nextProfile: SavedFilterProfile = {
+      name: trimmedName,
+      filters: currentFilterSnapshot,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const existingIndex = savedFilterProfiles.findIndex(
+      (profile) => profile.name.toLowerCase() === trimmedName.toLowerCase(),
+    );
+
+    const nextProfiles = [...savedFilterProfiles];
+    const isNewProfile = existingIndex === -1;
+    if (existingIndex >= 0) {
+      nextProfiles[existingIndex] = nextProfile;
+    } else {
+      nextProfiles.push(nextProfile);
+    }
+
+    await persistSavedFilterProfiles(nextProfiles);
+    isApplyingFilterProfileRef.current = true;
+    // Newly created profiles should become the active selection immediately.
+    // For overwrite, keep selecting the provided name so UI reflects latest intent.
+    setSelectedFilterProfileName(isNewProfile ? nextProfile.name : trimmedName);
+    setShowCreateFilterProfileInline(false);
+    setNewFilterProfileName('');
+    setNewFilterProfileError(null);
+  }, [newFilterProfileName, currentFilterSnapshot, savedFilterProfiles, persistSavedFilterProfiles, t]);
+
+  const handleDeleteFilterProfile = useCallback(async (profileName: string) => {
+    if (profileName === 'none' || profileName === selectedFilterProfileName) {
+      return;
+    }
+    const nextProfiles = savedFilterProfiles.filter((profile) => profile.name !== profileName);
+    await persistSavedFilterProfiles(nextProfiles);
+    if (selectedFilterProfileName === profileName) {
+      setSelectedFilterProfileName('none');
+    }
+    setPendingDeleteFilterProfile(null);
+  }, [savedFilterProfiles, persistSavedFilterProfiles, selectedFilterProfileName]);
+
+  // If user manually changes any scroll-box filter while a saved profile is selected,
+  // switch selection back to "none" to reflect a custom (unsaved) filter state.
+  useEffect(() => {
+    if (selectedFilterProfileName === 'none') return;
+    if (isApplyingFilterProfileRef.current) {
+      isApplyingFilterProfileRef.current = false;
+      return;
+    }
+    setSelectedFilterProfileName('none');
+  }, [
+    selectedFilterProfileName,
+    selectedDrones,
+    selectedBatteries,
+    selectedControllers,
+    selectedTags,
+    selectedColors,
+    durationFilterMin,
+    durationFilterMax,
+    altitudeFilterMin,
+    altitudeFilterMax,
+    distanceFilterMin,
+    distanceFilterMax,
+    dateRange,
+  ]);
 
   // Prevent all scrolling when overlay is active
   useEffect(() => {
@@ -509,7 +800,7 @@ export function FlightList({
     });
 
     return Array.from(unique.entries()).map(([key, label]) => ({ key, label }));
-  }, [flights, getDroneDisplayName, droneNameMap, getDisplaySerial]);
+  }, [flights, getDroneDisplayName, droneNameMap, getDisplaySerial, hideSerialNumbers]);
 
   const batteryOptions = useMemo(() => {
     const unique = new Set<string>();
@@ -1761,11 +2052,182 @@ export function FlightList({
             </div>
 
             {/* Scrollable filter fields container */}
-            {(() => {
-              const hasScrollboxFilter = durationFilterMin !== null || durationFilterMax !== null || altitudeFilterMin !== null || altitudeFilterMax !== null || distanceFilterMin !== null || distanceFilterMax !== null || dateRange?.from || dateRange?.to || selectedDrones.length > 0 || selectedBatteries.length > 0 || selectedControllers.length > 0 || selectedTags.length > 0 || selectedColors.length > 0;
-              return (
-                <div className={`relative rounded-lg border-2 transition-all duration-200 ${hasScrollboxFilter ? 'border-emerald-400/70 shadow-[0_0_12px_rgba(52,211,153,0.35),0_0_4px_rgba(52,211,153,0.2)]' : 'border-sky-400/50 shadow-[0_0_10px_rgba(56,189,248,0.25),0_0_4px_rgba(56,189,248,0.15)]'}`}>
-                  <div className="max-h-[190px] overflow-y-auto overflow-x-hidden space-y-3 py-2.5 pl-2.5 pr-4 filter-scroll-area">
+            <div className={`relative rounded-lg border-2 transition-all duration-200 ${hasScrollboxFilter ? 'border-emerald-400/70 shadow-[0_0_12px_rgba(52,211,153,0.35),0_0_4px_rgba(52,211,153,0.2)]' : 'border-sky-400/50 shadow-[0_0_10px_rgba(56,189,248,0.25),0_0_4px_rgba(56,189,248,0.15)]'}`}>
+              <div className="max-h-[190px] overflow-y-auto overflow-x-hidden space-y-3 py-2.5 pl-2.5 pr-4 filter-scroll-area">
+
+                    {/* Filter profile row */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-400 whitespace-nowrap w-[52px] flex-shrink-0">{t('flightList.savedFilterLabel')}</label>
+                        <div className="relative flex-1 min-w-0">
+                          <button
+                            ref={filterProfileBtnRef}
+                            type="button"
+                            onClick={() => {
+                              setIsFilterProfileDropdownOpen((v) => !v);
+                              setPendingDeleteFilterProfile(null);
+                            }}
+                            className="input w-full text-xs h-8 px-3 py-1.5 flex items-center justify-between gap-2"
+                          >
+                            <span className={`truncate ${selectedFilterProfileName !== 'none' ? 'text-gray-100' : 'text-gray-400'}`}>
+                              {selectedFilterProfileName === 'none' ? t('none') : selectedFilterProfileName}
+                            </span>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><polyline points="6 9 12 15 18 9" /></svg>
+                          </button>
+                          {isFilterProfileDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => {
+                                  setIsFilterProfileDropdownOpen(false);
+                                  setPendingDeleteFilterProfile(null);
+                                }}
+                              />
+                              <div
+                                ref={filterProfileDropdownRef}
+                                className="fixed z-50 h-56 rounded-lg border border-gray-700 bg-drone-surface shadow-xl flex flex-col overflow-hidden"
+                                style={(() => { const r = filterProfileBtnRef.current?.getBoundingClientRect(); return r ? { top: r.bottom + 4, left: r.left, width: r.width } : {}; })()}
+                              >
+                                <div className="overflow-y-auto overflow-x-hidden flex-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectFilterProfile('none')}
+                                    className={`w-full text-left px-3 py-2 text-xs transition-colors ${selectedFilterProfileName === 'none' ? 'bg-drone-primary/20 text-drone-primary' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
+                                  >
+                                    {t('none')}
+                                  </button>
+                                  {savedFilterProfiles.length === 0 && (
+                                    <p className="px-3 py-2 text-xs text-gray-500">{t('flightList.filterProfiles.noneSaved')}</p>
+                                  )}
+                                  {savedFilterProfiles.map((profile) => {
+                                    const isPendingDelete = pendingDeleteFilterProfile === profile.name;
+                                    const isProtectedProfile = profile.name === selectedFilterProfileName || profile.name.toLowerCase() === 'none';
+                                    return (
+                                      <div key={profile.name} className="border-t border-gray-700/60">
+                                        {isPendingDelete ? (
+                                          <div className="px-3 py-2 text-xs text-gray-300 space-y-1">
+                                            <p>{t('flightList.filterProfiles.deletePrompt', { name: profile.name })}</p>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteFilterProfile(profile.name)}
+                                                className="text-xs text-red-400 hover:text-red-300"
+                                              >
+                                                {t('flightList.delete')}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setPendingDeleteFilterProfile(null)}
+                                                className="text-xs text-gray-400 hover:text-gray-200"
+                                              >
+                                                {t('profile.cancel')}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSelectFilterProfile(profile.name)}
+                                              className={`flex-1 text-left px-3 py-2 text-xs transition-colors ${selectedFilterProfileName === profile.name ? 'bg-drone-primary/20 text-drone-primary' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
+                                            >
+                                              {profile.name}
+                                            </button>
+                                            {isProtectedProfile ? (
+                                              <span className="px-2 py-2 text-xs text-gray-600">-</span>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => setPendingDeleteFilterProfile(profile.name)}
+                                                className="px-2 py-2 text-xs text-gray-400 hover:text-red-300"
+                                                aria-label={t('flightList.filterProfiles.deleteAria', { name: profile.name })}
+                                              >
+                                                x
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!hasScrollboxFilter}
+                          onClick={() => {
+                            setShowCreateFilterProfileInline(true);
+                            setNewFilterProfileName(selectedFilterProfileName !== 'none' ? selectedFilterProfileName : '');
+                            setNewFilterProfileError(null);
+                            setIsFilterProfileDropdownOpen(false);
+                            setPendingDeleteFilterProfile(null);
+                          }}
+                          className={`h-8 px-2.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${hasScrollboxFilter
+                            ? 'border-drone-primary/50 text-drone-primary hover:bg-drone-primary/15'
+                            : 'border-gray-700 text-gray-500 cursor-not-allowed'}`}
+                        >
+                          {t('flightList.filterProfiles.saveSelectionButton')}
+                        </button>
+                      </div>
+
+                      {showCreateFilterProfileInline && (
+                        <div className="grid grid-cols-[52px_minmax(0,1fr)] items-start gap-2">
+                          <div />
+                          <div className="rounded-md border border-gray-700 bg-black/20 p-2 space-y-1.5">
+                            <p className="text-[11px] text-gray-400">{t('flightList.filterProfiles.createDescription')}</p>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={newFilterProfileName}
+                                onChange={(e) => {
+                                  setNewFilterProfileName(e.target.value);
+                                  if (newFilterProfileError) setNewFilterProfileError(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleCreateOrOverwriteFilterProfile();
+                                  }
+                                  if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setShowCreateFilterProfileInline(false);
+                                    setNewFilterProfileError(null);
+                                  }
+                                }}
+                                placeholder={t('profile.namePlaceholder')}
+                                className="input flex-1 text-xs h-7 px-2"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                type="button"
+                                onClick={handleCreateOrOverwriteFilterProfile}
+                                className="text-xs text-drone-primary hover:text-cyan-300"
+                              >
+                                {t('profile.create')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowCreateFilterProfileInline(false);
+                                  setNewFilterProfileError(null);
+                                }}
+                                className="text-xs text-gray-400 hover:text-gray-200"
+                              >
+                                {t('profile.cancel')}
+                              </button>
+                            </div>
+                            {newFilterProfileError && <p className="text-[11px] text-red-400">{newFilterProfileError}</p>}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="border-b border-gray-700/70" />
+                    </div>
 
                     {/* Duration range slider */}
                     <div className="flex items-center gap-2">
@@ -2534,10 +2996,8 @@ export function FlightList({
                       </div>
                     )}
 
-                  </div>
-                </div>
-              );
-            })()}{/* End scrollable filter fields container */}
+              </div>
+            </div>{/* End scrollable filter fields container */}
 
             {/* Separator */}
             <div className="border-t border-gray-700/40 -mx-1" />
@@ -2649,6 +3109,13 @@ export function FlightList({
                   setDistanceFilterMin(null);
                   setDistanceFilterMax(null);
                   setSelectedTags([]);
+                  setSelectedColors([]);
+                  setSelectedFilterProfileName('none');
+                  setShowCreateFilterProfileInline(false);
+                  setNewFilterProfileName('');
+                  setNewFilterProfileError(null);
+                  setIsFilterProfileDropdownOpen(false);
+                  setPendingDeleteFilterProfile(null);
                   setIsFilterInverted(false);
                   setMapAreaFilterEnabled(false);
                   setSearchQuery('');

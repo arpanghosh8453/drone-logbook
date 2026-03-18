@@ -1528,6 +1528,40 @@ mod tauri_app {
         Ok(acknowledged)
     }
 
+    /// Generic setting read helper for profile-scoped database settings.
+    #[tauri::command]
+    pub async fn get_setting_value(
+        key: String,
+        state: State<'_, AppState>,
+    ) -> Result<Option<String>, String> {
+        let trimmed = key.trim();
+        if trimmed.is_empty() {
+            return Err("Setting key cannot be empty".to_string());
+        }
+        state
+            .db_authenticated()?
+            .get_setting(trimmed)
+            .map_err(|e| format!("Failed to read setting: {}", e))
+    }
+
+    /// Generic setting write helper for profile-scoped database settings.
+    #[tauri::command]
+    pub async fn set_setting_value(
+        key: String,
+        value: String,
+        state: State<'_, AppState>,
+    ) -> Result<bool, String> {
+        let trimmed = key.trim();
+        if trimmed.is_empty() {
+            return Err("Setting key cannot be empty".to_string());
+        }
+        state
+            .db_authenticated()?
+            .set_setting(trimmed, &value)
+            .map_err(|e| format!("Failed to save setting: {}", e))?;
+        Ok(true)
+    }
+
     pub fn run() {
         tauri::Builder::default()
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1684,6 +1718,8 @@ mod tauri_app {
                 remove_supporter_badge,
                 get_donation_acknowledged,
                 set_donation_acknowledged,
+                get_setting_value,
+                set_setting_value,
             ])
             .run(tauri::generate_context!())
             .expect("Failed to run Open DroneLog");

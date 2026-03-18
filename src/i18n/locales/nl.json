@@ -119,6 +119,15 @@
     "clearSearch": "Zoekopdracht wissen",
     "logsSelected": "{{n}} van {{total}} logs geselecteerd",
     "clearFilters": "Filters wissen",
+    "savedFilterLabel": "Opgeslagen",
+    "filterProfiles": {
+      "saveSelectionButton": "Filter opslaan",
+      "createDescription": "Er wordt een profiel gemaakt op basis van de huidige filterselectie.",
+      "noneSaved": "Geen opgeslagen profielen",
+      "deletePrompt": "\"{{name}}\" verwijderen?",
+      "deleteAria": "{{name}} verwijderen",
+      "errorReservedNone": "De naam \"None\" is gereserveerd"
+    },
     "exportFiltered": "Gefilterde exporteren",
     "csv": "CSV",
     "json": "JSON",

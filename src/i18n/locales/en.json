@@ -115,6 +115,15 @@
     "clearSearch": "Clear search",
     "logsSelected": "{{n}} of {{total}} logs selected",
     "clearFilters": "Clear filters",
+    "savedFilterLabel": "Saved",
+    "filterProfiles": {
+      "saveSelectionButton": "Save filter",
+      "createDescription": "A profile will be created from the current filter selection.",
+      "noneSaved": "No saved profiles",
+      "deletePrompt": "Delete \"{{name}}\"?",
+      "deleteAria": "Delete {{name}}",
+      "errorReservedNone": "Name \"None\" is reserved"
+    },
     "exportFiltered": "Export filtered",
     "csv": "CSV",
     "json": "JSON",
