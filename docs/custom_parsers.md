@@ -32,7 +32,7 @@ Create a `parsers.json` file in your application's data directory.
 
 **For the Desktop App:**
 - **Linux**: `~/.local/share/com.drone-logbook/parsers.json`
-- **Windows**: `C:\Users\<User>\AppData\Local\com.drone-logbook\parsers.json`
+- **Windows**: `C:\Users\<User>\AppData\Roaming\com.drone-logbook\parsers.json`
 - **macOS**: `~/Library/Application Support/com.drone-logbook/parsers.json`
 
 **For the Web/Docker App:**
