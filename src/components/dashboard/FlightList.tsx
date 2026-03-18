@@ -186,11 +186,13 @@ function normalizeSavedFilterProfiles(value: unknown): SavedFilterProfile[] {
 export function FlightList({
   onSelectFlight,
   onHighlightFlight,
+  onTopFlightChange,
   activeView = 'flights',
   onFiltersExpanded,
 }: {
   onSelectFlight?: (flightId: number) => void;
   onHighlightFlight?: (flightId: number | null) => void;
+  onTopFlightChange?: (flightId: number | null) => void;
   activeView?: 'flights' | 'overview';
   onFiltersExpanded?: () => void;
 } = {}) {
@@ -1263,6 +1265,11 @@ export function FlightList({
     });
     return list;
   }, [getFlightTitle, filteredFlights, sortDirection, sortOption]);
+
+  // Keep parent aware of the first visible flight in the current sidebar ordering.
+  useEffect(() => {
+    onTopFlightChange?.(sortedFlights[0]?.id ?? null);
+  }, [sortedFlights, onTopFlightChange]);
 
   // Keyboard navigation: Up/Down arrows to navigate flights
   useEffect(() => {

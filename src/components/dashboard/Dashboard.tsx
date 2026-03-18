@@ -24,6 +24,7 @@ export function Dashboard() {
     isLoading,
     flights,
     isFlightsInitialized,
+    selectedFlightId,
     unitPrefs,
     themeMode,
     loadOverview,
@@ -38,6 +39,7 @@ export function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [activeView, setActiveView] = useState<'flights' | 'overview'>('overview');
+  const [topSidebarFlightId, setTopSidebarFlightId] = useState<number | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem('sidebarWidth');
@@ -236,9 +238,15 @@ export function Dashboard() {
             <div className="flex gap-2">
               <button
                 onClick={() => {
+                  if (activeView === 'overview' && selectedFlightId === null && topSidebarFlightId !== null) {
+                    useFlightStore.getState().selectFlight(topSidebarFlightId);
+                  }
                   setActiveView('flights');
                   // Clear highlighted flight when switching to flights view
                   useFlightStore.getState().setOverviewHighlightedFlightId(null);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                    setIsSidebarHidden(true);
+                  }
                 }}
                 className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${activeView === 'flights'
                   ? 'bg-drone-primary/20 border-drone-primary text-white'
@@ -248,7 +256,12 @@ export function Dashboard() {
                 {t('dashboard.individual')}
               </button>
               <button
-                onClick={() => setActiveView('overview')}
+                onClick={() => {
+                  setActiveView('overview');
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                    setIsSidebarHidden(true);
+                  }
+                }}
                 className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${activeView === 'overview'
                   ? 'bg-drone-primary/20 border-drone-primary text-white'
                   : 'border-gray-700 text-gray-400 hover:text-white'
@@ -346,6 +359,7 @@ export function Dashboard() {
           <div className="flex-1 min-h-0 flex flex-col">
             <FlightList
               activeView={activeView}
+              onTopFlightChange={setTopSidebarFlightId}
               onFiltersExpanded={() => setIsImporterCollapsed(true)}
               onSelectFlight={(flightId) => {
                 // Clear the overview highlight when navigating to a flight
