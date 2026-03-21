@@ -13,7 +13,7 @@ services:
       # - /path/to/uploaded/files:/data/drone-logbook/uploaded
     environment:
       - DATA_DIR=/data/drone-logbook
-      - RUST_LOG=info
+      - RUST_LOG=DEBUG
       - KEEP_UPLOADED_FILES=true
       # Obtain a key at https://developer.dji.com/user (see README for details).
       # - DJI_API_KEY=your_api_key_here

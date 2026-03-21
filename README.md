@@ -400,7 +400,7 @@ For production deployments, a reverse proxy with TLS is essential.
 ## Configuration
 
 - **DJI API Key**: Stored locally in `config.json`. You can also provide it via `.env` or via the `settings` menu inside the application. The standalone app ships with a default key, but users should enter their own to avoid rate limits for log file decryption key fetching.
-- **External Parsers**: Optional parser plugins can be configured in `parsers.json` (app-data directory on desktop, `/data/drone-logbook/parsers.json` in Docker/web).
+- **External Parsers**: Optional parser plugins can be configured in `parsers.json` (app-data directory on desktop, and `DATA_DIR/parsers.json` in Docker/web). In the default compose setup (`DATA_DIR=/data/drone-logbook`), this is `/data/drone-logbook/parsers.json`.
 - **Sync folder**: Set and use the `sync folder` (application interface for Desktop and ENV variable for docker) for seamless log file import and re-import with de-duplication. The files uploaded through drag and drop or browse are also collected by default in the `Uploaded` folder of application storage (customizable via settings options for Desktop and ENV variable for docker). You can use a common folder (essentially unifying the raw log files storage location), but that is not generally recommended to prevent any mishaps or file overwrites.  
 - **Database Location**: Stored in the platform-specific app data directory (e.g., AppData on Windows, Application Support on macOS, and local share on Linux). In Docker mode, data is stored in `/data/drone-logbook` (persisted via a Docker volume).
 - **API Guide**: Available API request paths and response structure is provided in the [API documentation](/docs/api-guide.md) page. 

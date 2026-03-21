@@ -36,7 +36,10 @@ Create a `parsers.json` file in your application's data directory.
 - **macOS**: `~/Library/Application Support/com.drone-logbook/parsers.json`
 
 **For the Web/Docker App:**
-- **Linux/Docker**: map as a volume, e.g., `./data/parsers.json:/app/data/parsers.json`
+- **Linux/Docker**: place it at `<DATA_DIR>/parsers.json`.
+- The exact path is determined by the `DATA_DIR` environment variable in your compose file.
+- With the default compose setup (`DATA_DIR=/data/drone-logbook`), this resolves to `/data/drone-logbook/parsers.json` inside the container.
+- Example single-file bind mount: `./data/parsers.json:/data/drone-logbook/parsers.json:ro`
 
 ### Example `parsers.json`
 
@@ -183,11 +186,11 @@ services:
   open-dronelog:
     image: arpanghosh8453/open-dronelog:latest
     volumes:
-      - ./data:/app/data
+      - ./data:/data/drone-logbook
       - ./plugins:/app/plugins  # Mount your custom scripts here
 ```
 
-And configure your `parsers.json` (placed in `/app/data/parsers.json`) to invoke your script using available tools in the container or standalone binaries:
+And configure your `parsers.json` (placed in `/data/drone-logbook/parsers.json` with the default compose setup) to invoke your script using available tools in the container or standalone binaries:
 ```json
 {
   "mappings": {
