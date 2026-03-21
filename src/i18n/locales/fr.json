@@ -503,6 +503,8 @@
   "weather": {
     "title": "Météo du vol",
     "fetching": "Récupération des données météo...",
+    "location": "Emplacement du point de départ",
+    "locationFetching": "Résolution de l'emplacement...",
     "feelsLike": "Ressenti",
     "windSpeed": "Vitesse du vent",
     "windGusts": "Rafales de vent",
@@ -511,7 +513,8 @@
     "precipitation": "Précipitations",
     "windDirection": "Direction du vent",
     "pressure": "Pression",
-    "attribution": "Données d'Open-Meteo basées sur le lieu et l'heure du vol"
+    "attribution": "Données d'Open-Meteo basées sur le lieu et l'heure du vol",
+    "locationAttribution": "Données de localisation fournies par OpenStreetMap Nominatim"
   },
   "report": {
     "title": "Rapport HTML",

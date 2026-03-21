@@ -503,6 +503,8 @@
   "weather": {
     "title": "飞行天气",
     "fetching": "正在获取天气数据...",
+    "location": "返航点位置",
+    "locationFetching": "正在解析位置...",
     "feelsLike": "体感温度",
     "windSpeed": "风速",
     "windGusts": "阵风",
@@ -511,7 +513,8 @@
     "precipitation": "降水量",
     "windDirection": "风向",
     "pressure": "气压",
-    "attribution": "数据来自 Open-Meteo，基于飞行位置和时间"
+    "attribution": "数据来自 Open-Meteo，基于飞行位置和时间",
+    "locationAttribution": "位置数据来自 OpenStreetMap Nominatim"
   },
   "report": {
     "title": "HTML 报告",

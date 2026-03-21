@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { fetchFlightWeather } from '@/lib/weather';
+import { fetchFlightWeather, fetchReverseGeocodeLocation } from '@/lib/weather';
 import type { WeatherData } from '@/lib/weather';
 import type { UnitSystem } from '@/lib/utils';
 import { fmtNum } from '@/lib/utils';
@@ -29,6 +29,8 @@ interface WeatherModalProps {
 export function WeatherModal({ isOpen, onClose, lat, lon, startTime, temperatureUnit, speedUnit }: WeatherModalProps) {
   const { t } = useTranslation();
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,11 +39,18 @@ export function WeatherModal({ isOpen, onClose, lat, lon, startTime, temperature
     setLoading(true);
     setError(null);
     setWeather(null);
+    setLocationLabel(null);
+    setLocationLoading(true);
 
     fetchFlightWeather(lat, lon, startTime)
       .then(setWeather)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
+
+    fetchReverseGeocodeLocation(lat, lon, useFlightStore.getState().locale, 'detailed')
+      .then(setLocationLabel)
+      .catch(() => setLocationLabel(null))
+      .finally(() => setLocationLoading(false));
   }, [isOpen, lat, lon, startTime]);
 
   // Lock body scroll and hide all nested scrollbars while open
@@ -136,6 +145,21 @@ export function WeatherModal({ isOpen, onClose, lat, lon, startTime, temperature
                   <p className="text-sm text-gray-400 mt-1">{weather.conditionLabel}</p>
                 </div>
 
+                {/* Reverse-geocoded home-point location */}
+                <div className="mb-4 rounded-lg bg-drone-surface/40 border border-gray-700/50 px-3 py-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <LocationPinIcon className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-500">{t('weather.location')}</p>
+                      <p className="text-sm text-gray-200 leading-snug break-words">
+                        {locationLoading
+                          ? t('weather.locationFetching')
+                          : (locationLabel ?? `${fmtNum(lat, 4, locale)}, ${fmtNum(lon, 4, locale)}`)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Stats grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <WeatherStat
@@ -187,6 +211,9 @@ export function WeatherModal({ isOpen, onClose, lat, lon, startTime, temperature
                 {/* Footer */}
                 <p className="text-[10px] text-gray-600 text-center mt-4">
                   {t('weather.attribution')}
+                </p>
+                <p className="text-[10px] text-gray-600 text-center mt-1">
+                  {t('weather.locationAttribution')}
                 </p>
               </>
             );
@@ -296,6 +323,15 @@ function GaugeIcon({ className }: { className?: string }) {
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 110-18 9 9 0 010 18z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 12l3.5-3.5" />
       <circle cx="12" cy="12" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function LocationPinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.062 6-11a6 6 0 10-12 0c0 5.938 6 11 6 11z" />
+      <circle cx="12" cy="10" r="2" />
     </svg>
   );
 }

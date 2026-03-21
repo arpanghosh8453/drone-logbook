@@ -18,6 +18,29 @@ export interface WeatherData {
   conditionLabel: string;
 }
 
+interface ReverseGeocodeResponse {
+  display_name?: string;
+  address?: {
+    house_number?: string;
+    road?: string;
+    neighbourhood?: string;
+    quarter?: string;
+    city_district?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    hamlet?: string;
+    suburb?: string;
+    county?: string;
+    state_district?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+  };
+}
+
+export type ReverseGeocodeDetailLevel = 'coarse' | 'postcode' | 'detailed';
+
 /**
  * WMO weather interpretation codes -> human-readable label
  */
@@ -142,4 +165,76 @@ export async function fetchFlightWeather(
     pressure: Math.round(val(h.surface_pressure)),
     conditionLabel: wmoCodeToLabel(val(h.weather_code)),
   };
+}
+
+/**
+ * Reverse geocode coordinates via Nominatim (OpenStreetMap).
+ * No API key required.
+ */
+export async function fetchReverseGeocodeLocation(
+  lat: number,
+  lon: number,
+  language?: string,
+  detailLevel: ReverseGeocodeDetailLevel = 'detailed',
+): Promise<string> {
+  const params = new URLSearchParams({
+    lat: lat.toFixed(6),
+    lon: lon.toFixed(6),
+    format: 'jsonv2',
+    addressdetails: '1',
+    zoom: '18',
+  });
+
+  const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+    headers: language ? { 'Accept-Language': language } : undefined,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Reverse geocoding API returned status ${res.status}`);
+  }
+
+  const json = (await res.json()) as ReverseGeocodeResponse;
+  const a = json.address;
+  const locality = a?.city || a?.town || a?.village || a?.hamlet || a?.suburb || a?.county;
+  const street = [a?.house_number, a?.road].filter(Boolean).join(' ');
+  const neighborhood = a?.neighbourhood || a?.quarter || a?.city_district || a?.suburb;
+  const postcode = a?.postcode;
+  const district = a?.state_district;
+  const region = a?.state;
+  const country = a?.country;
+
+  const coarseParts = [locality, region, country].filter(
+    (v, i, arr): v is string => Boolean(v) && arr.indexOf(v) === i,
+  );
+  if (detailLevel === 'coarse' && coarseParts.length > 0) {
+    return coarseParts.join(', ');
+  }
+
+  const postcodeParts = [postcode, locality, region, country].filter(
+    (v, i, arr): v is string => Boolean(v) && arr.indexOf(v) === i,
+  );
+  if (detailLevel === 'postcode' && postcodeParts.length > 0) {
+    return postcodeParts.join(', ');
+  }
+
+  const detailedParts = [street, neighborhood, postcode, locality, district, region, country].filter(
+    (v, i, arr): v is string => Boolean(v) && arr.indexOf(v) === i,
+  );
+  if (detailLevel === 'detailed' && detailedParts.length > 0) {
+    return detailedParts.join(', ');
+  }
+
+  if (postcodeParts.length > 0) {
+    return postcodeParts.join(', ');
+  }
+
+  if (coarseParts.length > 0) {
+    return coarseParts.join(', ');
+  }
+
+  if (json.display_name) {
+    return json.display_name;
+  }
+
+  throw new Error('No reverse geocoding result available');
 }

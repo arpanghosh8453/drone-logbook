@@ -503,6 +503,8 @@
   "weather": {
     "title": "Vluchtweer",
     "fetching": "Weergegevens ophalen...",
+    "location": "Homepointlocatie",
+    "locationFetching": "Locatie bepalen...",
     "feelsLike": "Gevoelstemperatuur",
     "windSpeed": "Windsnelheid",
     "windGusts": "Windvlagen",
@@ -511,7 +513,8 @@
     "precipitation": "Neerslag",
     "windDirection": "Windrichting",
     "pressure": "Luchtdruk",
-    "attribution": "Gegevens van Open-Meteo gebaseerd op vluchtlocatie en -tijd"
+    "attribution": "Gegevens van Open-Meteo gebaseerd op vluchtlocatie en -tijd",
+    "locationAttribution": "Locatiegegevens van OpenStreetMap Nominatim"
   },
   "report": {
     "title": "HTML-rapport",

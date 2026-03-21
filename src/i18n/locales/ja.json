@@ -503,6 +503,8 @@
   "weather": {
     "title": "フライト天気",
     "fetching": "天気データを取得中...",
+    "location": "ホームポイントの場所",
+    "locationFetching": "場所を特定中...",
     "feelsLike": "体感温度",
     "windSpeed": "風速",
     "windGusts": "突風",
@@ -511,7 +513,8 @@
     "precipitation": "降水量",
     "windDirection": "風向",
     "pressure": "気圧",
-    "attribution": "フライトの位置と時間に基づく Open-Meteo のデータ"
+    "attribution": "フライトの位置と時間に基づく Open-Meteo のデータ",
+    "locationAttribution": "位置情報は OpenStreetMap Nominatim 提供"
   },
   "report": {
     "title": "HTML レポート",

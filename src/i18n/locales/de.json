@@ -503,6 +503,8 @@
   "weather": {
     "title": "Flugwetter",
     "fetching": "Wetterdaten werden abgerufen...",
+    "location": "Homepoint-Standort",
+    "locationFetching": "Standort wird ermittelt...",
     "feelsLike": "Gefühlt",
     "windSpeed": "Windgeschwindigkeit",
     "windGusts": "Windböen",
@@ -511,7 +513,8 @@
     "precipitation": "Niederschlag",
     "windDirection": "Windrichtung",
     "pressure": "Luftdruck",
-    "attribution": "Daten von Open-Meteo basierend auf Flugort und -zeit"
+    "attribution": "Daten von Open-Meteo basierend auf Flugort und -zeit",
+    "locationAttribution": "Standortdaten von OpenStreetMap Nominatim"
   },
   "report": {
     "title": "HTML-Bericht",

@@ -496,6 +496,8 @@
   "weather": {
     "title": "Clima do Voo",
     "fetching": "Obtendo dados meteorológicos...",
+    "location": "Localização do Ponto Inicial",
+    "locationFetching": "Resolvendo localização...",
     "feelsLike": "Sensação Térmica",
     "windSpeed": "Velocidade do Vento",
     "windGusts": "Rajadas de Vento",
@@ -504,7 +506,8 @@
     "precipitation": "Precipitação",
     "windDirection": "Direção do Vento",
     "pressure": "Pressão",
-    "attribution": "Dados do Open-Meteo baseados na localização e hora do voo"
+    "attribution": "Dados do Open-Meteo baseados na localização e hora do voo",
+    "locationAttribution": "Dados de localização do OpenStreetMap Nominatim"
   },
   "report": {
     "title": "Relatório HTML",

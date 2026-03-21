@@ -506,6 +506,8 @@
   "weather": {
     "title": "Flight Weather",
     "fetching": "Fetching weather data...",
+    "location": "Home Point Location",
+    "locationFetching": "Resolving location...",
     "feelsLike": "Feels Like",
     "windSpeed": "Wind Speed",
     "windGusts": "Wind Gusts",
@@ -514,7 +516,8 @@
     "precipitation": "Precipitation",
     "windDirection": "Wind Direction",
     "pressure": "Pressure",
-    "attribution": "Data from Open-Meteo based on flight location and time"
+    "attribution": "Weather data from Open-Meteo based on flight location and time",
+    "locationAttribution": "Location data from OpenStreetMap Nominatim"
   },
   "report": {
     "title": "HTML Report",

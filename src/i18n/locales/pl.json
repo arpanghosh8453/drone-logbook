@@ -501,6 +501,8 @@
   "weather": {
     "title": "Pogoda Lotu",
     "fetching": "Pobieranie danych pogodowych...",
+    "location": "Lokalizacja punktu startu",
+    "locationFetching": "Ustalanie lokalizacji...",
     "feelsLike": "Odczuwalna",
     "windSpeed": "Prędkość Wiatru",
     "windGusts": "Porywy Wiatru",
@@ -509,7 +511,8 @@
     "precipitation": "Opady",
     "windDirection": "Kierunek Wiatru",
     "pressure": "Ciśnienie",
-    "attribution": "Dane z Open-Meteo na podstawie lokalizacji i czasu lotu"
+    "attribution": "Dane z Open-Meteo na podstawie lokalizacji i czasu lotu",
+    "locationAttribution": "Dane lokalizacji z OpenStreetMap Nominatim"
   },
   "report": {
     "title": "Raport HTML",

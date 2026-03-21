@@ -503,6 +503,8 @@
   "weather": {
     "title": "비행 날씨",
     "fetching": "날씨 데이터 가져오는 중...",
+    "location": "홈 포인트 위치",
+    "locationFetching": "위치 확인 중...",
     "feelsLike": "체감 온도",
     "windSpeed": "풍속",
     "windGusts": "돌풍",
@@ -511,7 +513,8 @@
     "precipitation": "강수량",
     "windDirection": "풍향",
     "pressure": "기압",
-    "attribution": "비행 위치 및 시간 기반 Open-Meteo 데이터"
+    "attribution": "비행 위치 및 시간 기반 Open-Meteo 데이터",
+    "locationAttribution": "위치 데이터: OpenStreetMap Nominatim"
   },
   "report": {
     "title": "HTML 보고서",
