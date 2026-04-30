@@ -6,13 +6,6 @@ import './index.css';
 import './styles/mobile.css';
 import './i18n';
 
-// Expose actual visible-area height as --vh so CSS can use it reliably.
-// window.innerHeight is correct on all WebViews (incl. old Android) unlike dvh.
-const updateVhVar = () =>
-  document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-updateVhVar();
-window.addEventListener('resize', updateVhVar);
-
 // Attach Tauri console logger only in Tauri mode
 if (!isWebMode()) {
   import('@tauri-apps/plugin-log')
