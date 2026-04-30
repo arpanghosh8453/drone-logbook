@@ -350,6 +350,7 @@
 
     #[tauri::command]
     pub async fn import_log_bytes(
+        app: AppHandle,
         file_name: String,
         file_bytes: Vec<u8>,
         state: State<'_, AppState>,
@@ -360,9 +361,18 @@
             .filter(|s| !s.trim().is_empty())
             .unwrap_or("import.log");
 
-        // Keep the original file name so default flight names are preserved.
-        // Use a unique temp subdirectory to avoid collisions.
-        let temp_dir = std::env::temp_dir().join(format!("odl_mobile_import_{}", uuid::Uuid::new_v4()));
+        // On Android, std::env::temp_dir() resolves to /tmp which is outside the
+        // app sandbox — use the app cache directory instead so writes are permitted.
+        let base_dir = app.path().app_cache_dir().unwrap_or_else(|e| {
+            let fallback_dir = std::env::temp_dir();
+            log::warn!(
+                "Failed to resolve app cache directory: {}. Falling back to temporary directory {:?}",
+                e,
+                fallback_dir
+            );
+            fallback_dir
+        });
+        let temp_dir = base_dir.join(format!("odl_mobile_import_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir)
             .map_err(|e| format!("Failed to create import staging directory: {}", e))?;
         let temp_path = temp_dir.join(safe_name);
