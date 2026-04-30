@@ -21,6 +21,5 @@
 }
 
 .modal-mobile-max {
-  /* --vh is set via JS (window.innerHeight) and works on all WebViews including old Android */
-  max-height: calc(var(--vh, 1vh) * 100 - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 2rem);
+  max-height: min(85vh, calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 1.5rem));
 }
