@@ -363,10 +363,15 @@
 
         // On Android, std::env::temp_dir() resolves to /tmp which is outside the
         // app sandbox — use the app cache directory instead so writes are permitted.
-        let base_dir = app
-            .path()
-            .app_cache_dir()
-            .unwrap_or_else(|_| std::env::temp_dir());
+        let base_dir = app.path().app_cache_dir().unwrap_or_else(|e| {
+            let fallback_dir = std::env::temp_dir();
+            log::warn!(
+                "Failed to resolve app cache directory: {}. Falling back to temporary directory {:?}",
+                e,
+                fallback_dir
+            );
+            fallback_dir
+        });
         let temp_dir = base_dir.join(format!("odl_mobile_import_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir)
             .map_err(|e| format!("Failed to create import staging directory: {}", e))?;
