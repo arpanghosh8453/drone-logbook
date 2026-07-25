@@ -621,7 +621,7 @@ While some parts of this codebase were written with AI assistance (Claude Opus 4
     </tr>
     <tr>
         <td align="center">
-            <a href="https://opendronelog.zenithdronesolutions.com/">
+            <a href="https://zenithdronesolutions.com/">
                 <img src="https://opendronelog.com/sponsors/zenithdronesolutions_dark.png" alt="Zenith Drone Solutions" style="width: 160px; max-width: 100%; height: auto; margin: 8px 12px;" />
             </a>
         </td>
