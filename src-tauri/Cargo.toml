@@ -40,7 +40,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # DuckDB - Embedded analytical database (bundled = no system install required)
-duckdb = { version = "1.0", features = ["bundled", "json", "parquet"] }
+duckdb = { version = "1.1.1", features = ["bundled", "json", "parquet"] }
 
 # DJI Log Parser
 dji-log-parser = "0.5.7"

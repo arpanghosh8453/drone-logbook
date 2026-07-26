@@ -57,7 +57,6 @@ jobs:
       contents: write
       actions: read
     env:
-      CXXFLAGS: ${{ runner.os == 'Windows' && '/std:c++17 /EHsc' || '' }}
       CL: ${{ runner.os == 'Windows' && '/std:c++17 /EHsc' || '' }}
     strategy:
       fail-fast: false
@@ -107,7 +106,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.93.0
+          toolchain: 1.81.0
           targets: ${{ matrix.target }}
 
       - name: Build Tauri app
