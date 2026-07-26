@@ -56,6 +56,9 @@ jobs:
       id-token: write
       contents: write
       actions: read
+    env:
+      CXXFLAGS: ${{ runner.os == 'Windows' && '/std:c++17 /EHsc' || '' }}
+      CL: ${{ runner.os == 'Windows' && '/std:c++17 /EHsc' || '' }}
     strategy:
       fail-fast: false
       matrix:
