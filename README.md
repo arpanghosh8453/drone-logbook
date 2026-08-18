@@ -648,4 +648,4 @@ While some parts of this codebase were written with AI assistance (Claude Opus 4
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=arpanghosh8453/open-dronelog&type=date&legend=top-left)](https://www.star-history.com/#arpanghosh8453/open-dronelog&type=date&legend=top-left)
+[![Star History Chart](https://star-history.dera.page/svg?repos=arpanghosh8453/open-dronelog&type=date&legend=top-left)](https://star-history.dera.page/#arpanghosh8453/open-dronelog&type=date&legend=top-left)
