@@ -908,6 +908,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       { value: 'nl', label: 'Nederlands' },
                       { value: 'pl', label: 'Polski' },
                       { value: 'pt', label: 'Português BR' },
+                      { value: 'ru', label: 'Русский' },
                       { value: 'tr', label: 'Turkce' },
                       { value: 'zh', label: '中文' },
                       { value: 'ja', label: '日本語' },

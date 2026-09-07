@@ -9,6 +9,7 @@ import it from './locales/it.json';
 import nl from './locales/nl.json';
 import pl from './locales/pl.json';
 import pt from './locales/pt.json';
+import ru from './locales/ru.json';
 import ja from './locales/ja.json';
 import zh from './locales/zh.json';
 import ko from './locales/ko.json';
@@ -29,6 +30,7 @@ export const localeToLang: Record<string, string> = {
   'nl-NL': 'nl',
   'pl-PL': 'pl',
   'pt-BR': 'pt',
+  'ru-RU': 'ru',
   'ja-JP': 'ja',
   'zh-CN': 'zh',
   'ko-KR': 'ko',
@@ -49,6 +51,7 @@ i18n.use(initReactI18next).init({
     nl: { translation: nl },
     pl: { translation: pl },
     pt: { translation: pt },
+    ru: { translation: ru },
     ja: { translation: ja },
     zh: { translation: zh },
     ko: { translation: ko },
